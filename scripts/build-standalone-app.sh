@@ -24,6 +24,12 @@ if [ ! -f "${BUILD_DIR}/${ZIP_NAME}" ]; then
   curl -L "${DOWNLOAD_URL}" -o "${BUILD_DIR}/${ZIP_NAME}"
 fi
 
+echo "🌐 2.1 Descargando Spanish Language Pack..."
+ES_LANG_URL="https://open-vsx.org/api/MS-CEINTL/vscode-language-pack-es/1.87.0/file/MS-CEINTL.vscode-language-pack-es-1.87.0.vsix"
+if [ ! -f "${BUILD_DIR}/es-lang.vsix" ]; then
+  curl -sL "${ES_LANG_URL}" -o "${BUILD_DIR}/es-lang.vsix"
+fi
+
 echo "📂 3. Extrayendo Code-OSS..."
 rm -rf "${BUILD_DIR}/extracted"
 mkdir -p "${BUILD_DIR}/extracted"
@@ -67,7 +73,7 @@ if [ -d "${APP_PATH}/Contents/Frameworks" ]; then
   cd "${PROJECT_ROOT}"
 fi
 
-# 4.4 Inject product.json customization
+# 4.4 Inject product.json customization and default BennuGD settings
 PRODUCT_JSON="${APP_PATH}/Contents/Resources/app/product.json"
 if [ -f "${PRODUCT_JSON}" ]; then
   node -e "
@@ -80,22 +86,59 @@ if [ -f "${PRODUCT_JSON}" ]; then
     data.win32AppId = 'BennuIDE';
     data.darwinBundleIdentifier = 'org.bennugd.bennuide';
     data.reportIssueUrl = 'https://github.com/SplinterGU/BennuGD2';
+    data.configurationDefaults = {
+      'workbench.colorTheme': 'BennuIDE Dark (One Dark Pro)',
+      'files.associations': {
+        '*.prg': 'bennugd2',
+        '*.inc': 'bennugd2',
+        '*.bgd': 'bennugd2'
+      },
+      'workbench.editor.customEditors': [
+        {
+          'viewType': 'bennugd2.fpgEditor',
+          'filenamePattern': '*.fpg'
+        },
+        {
+          'viewType': 'bennugd2.fntEditor',
+          'filenamePattern': '*.fnt'
+        },
+        {
+          'viewType': 'bennugd2.fntEditor',
+          'filenamePattern': '*.fnx'
+        }
+      ]
+    };
     fs.writeFileSync(p, JSON.stringify(data, null, 2));
   "
 fi
 
-echo "🔌 5. Inyectando extensiones de BennuGD2 en el core del IDE..."
+echo "🔌 5. Inyectando extensiones oficiales de BennuGD2 y Paquete Español..."
 EXT_DIR="${APP_PATH}/Contents/Resources/app/extensions"
 mkdir -p "${EXT_DIR}"
 
-# Copy built extensions
-cp -R "${PROJECT_ROOT}/extensions/bennugd2-language" "${EXT_DIR}/"
-cp -R "${PROJECT_ROOT}/extensions/bennugd2-fpg-editor" "${EXT_DIR}/"
-cp -R "${PROJECT_ROOT}/extensions/bennugd2-fnt-editor" "${EXT_DIR}/"
-cp -R "${PROJECT_ROOT}/packages/bennuide-ai-agent" "${EXT_DIR}/"
+# 5.1 Extract Spanish Language Pack
+mkdir -p "${BUILD_DIR}/es-extracted"
+unzip -q -o "${BUILD_DIR}/es-lang.vsix" -d "${BUILD_DIR}/es-extracted"
+rm -rf "${EXT_DIR}/ms-ceintl.vscode-language-pack-es"
+cp -R "${BUILD_DIR}/es-extracted/extension" "${EXT_DIR}/ms-ceintl.vscode-language-pack-es"
 
-# Clean unwanted dev files inside app extensions
-rm -rf "${EXT_DIR}"/*/src "${EXT_DIR}"/*/.vscode*
+# 5.2 Copy BennuGD2 built-in extensions with full node_modules
+copy_extension() {
+  local src="$1"
+  local name="$(basename "$src")"
+  local dest="${EXT_DIR}/${name}"
+  rm -rf "${dest}"
+  mkdir -p "${dest}"
+  cp -R "${src}"/* "${dest}/"
+}
+
+copy_extension "${PROJECT_ROOT}/extensions/bennugd2-language"
+copy_extension "${PROJECT_ROOT}/extensions/bennugd2-fpg-editor"
+copy_extension "${PROJECT_ROOT}/extensions/bennugd2-fnt-editor"
+copy_extension "${PROJECT_ROOT}/packages/bennuide-ai-agent"
+
+# Clean development-only files
+rm -rf "${EXT_DIR}"/*/src "${EXT_DIR}"/*/.vscode* "${EXT_DIR}"/*/tsconfig*.json
 
 echo "🔏 6. Re-firmando binarios de forma recursiva (ad-hoc)..."
 find "${APP_PATH}/Contents/Frameworks" -name "*.framework" -o -name "*.app" -o -name "*.dylib" | while read -r item; do

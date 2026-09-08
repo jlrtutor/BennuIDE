@@ -16,6 +16,13 @@
     "Linters"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:bennugd2",
+    "onCommand:bennugd2.compile",
+    "onCommand:bennugd2.run",
+    "onCommand:bennugd2.compileAndRun",
+    "*"
+  ],
   "contributes": {
     "languages": [
       {

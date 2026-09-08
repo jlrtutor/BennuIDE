@@ -13,6 +13,10 @@
     "Chat"
   ],
   "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:bennuide.aiChatView",
+    "*"
+  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
