@@ -1,0 +1,214 @@
+{
+  "name": "bennugd2-language",
+  "displayName": "BennuGD2 Language Support & Tools",
+  "description": "Official BennuGD2 language support, LSP, interactive debugger, compilation tools, and themes for BennuIDE.",
+  "version": "1.0.0",
+  "publisher": "bennuide",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Themes",
+    "Snippets",
+    "Debuggers",
+    "Linters"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "bennugd2",
+        "aliases": [
+          "BennuGD2",
+          "bennugd",
+          "bgd"
+        ],
+        "extensions": [
+          ".prg",
+          ".inc",
+          ".bgd"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "bennugd2",
+        "scopeName": "source.bennugd2",
+        "path": "./syntaxes/bennugd2.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "BennuIDE Dark (One Dark Pro)",
+        "uiTheme": "vs-dark",
+        "path": "./themes/bennuide-dark.json"
+      },
+      {
+        "label": "BennuIDE Light (PowerShell ISE)",
+        "uiTheme": "vs",
+        "path": "./themes/bennuide-light.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "bennugd2",
+        "path": "./snippets/bennugd2.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "bennugd2.compile",
+        "title": "BennuGD2: Compile Project/File",
+        "category": "BennuGD2",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "bennugd2.run",
+        "title": "BennuGD2: Run Compiled DCB",
+        "category": "BennuGD2",
+        "icon": "$(play)"
+      },
+      {
+        "command": "bennugd2.compileAndRun",
+        "title": "BennuGD2: Compile and Run",
+        "category": "BennuGD2",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "bennugd2.clean",
+        "title": "BennuGD2: Clean Build Files (.dcb)",
+        "category": "BennuGD2",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "bennugd2.compileAndRun",
+          "when": "resourceExtname == .prg || editorLangId == bennugd2",
+          "group": "navigation@1"
+        },
+        {
+          "command": "bennugd2.compile",
+          "when": "resourceExtname == .prg || editorLangId == bennugd2",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "bennugd2.compile"
+        },
+        {
+          "command": "bennugd2.run"
+        },
+        {
+          "command": "bennugd2.compileAndRun"
+        },
+        {
+          "command": "bennugd2.clean"
+        }
+      ]
+    },
+    "breakpoints": [
+      {
+        "language": "bennugd2"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "bennugd2",
+        "label": "BennuGD2 Debugger",
+        "languages": [
+          "bennugd2"
+        ],
+        "configurationSnippets": [
+          {
+            "label": "BennuGD2: Launch Game",
+            "description": "Compile with debug symbols and run with BennuGD2 Debugger",
+            "body": {
+              "type": "bennugd2",
+              "request": "launch",
+              "name": "Debug BennuGD2 Game",
+              "program": "^\"\\${workspaceFolder}/main.prg\"",
+              "stopOnEntry": false
+            }
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "BennuGD2 Configuration",
+      "properties": {
+        "bennugd2.compilerPath": {
+          "type": "string",
+          "default": "bgdc",
+          "description": "Path to the bgdc compiler executable."
+        },
+        "bennugd2.runtimePath": {
+          "type": "string",
+          "default": "bgdi",
+          "description": "Path to the bgdi interpreter executable."
+        },
+        "bennugd2.compilerArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional command-line arguments to pass to bgdc."
+        },
+        "bennugd2.mainFile": {
+          "type": "string",
+          "default": "",
+          "description": "Main .prg file to compile for the project. If empty, the currently active editor file will be compiled."
+        },
+        "bennugd2.debugPort": {
+          "type": "number",
+          "default": 4711,
+          "description": "Local TCP port used to communicate with the bgdi debug hook socket."
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "bennugd2-bgdc",
+        "owner": "bennugd2",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": [
+          {
+            "regexp": "^(.+):(\\d+):\\s+(error|warning):\\s+(.+)$",
+            "file": 1,
+            "line": 2,
+            "severity": 3,
+            "message": 4
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@vscode/debugadapter": "^1.68.0",
+    "@vscode/debugprotocol": "^1.68.0",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

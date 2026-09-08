@@ -1,0 +1,52 @@
+name: Build BennuIDE Extensions
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-extensions:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        extension:
+          - extensions/bennugd2-language
+          - extensions/bennugd2-fpg-editor
+          - extensions/bennugd2-fnt-editor
+          - packages/bennuide-ai-agent
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: '${{ matrix.extension }}/package-lock.json'
+
+      - name: Install @vscode/vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Install Dependencies
+        working-directory: ${{ matrix.extension }}
+        run: npm install
+
+      - name: Compile Extension
+        working-directory: ${{ matrix.extension }}
+        run: npm run compile
+
+      - name: Package VSIX
+        working-directory: ${{ matrix.extension }}
+        run: vsce package --no-dependencies -o dist/
+
+      - name: Upload VSIX Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.extension }}-vsix
+          path: ${{ matrix.extension }}/dist/*.vsix

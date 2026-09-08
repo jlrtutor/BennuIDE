@@ -1,0 +1,58 @@
+{
+  "name": "bennuide-ai-agent",
+  "displayName": "BennuIDE AI Coding Agent",
+  "description": "Integrated AI assistant for BennuGD2 game development in BennuIDE.",
+  "version": "1.0.0",
+  "publisher": "bennuide",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bennuide-ai-view",
+          "title": "BennuIDE AI Agent",
+          "icon": "$(hubot)"
+        }
+      ]
+    },
+    "views": {
+      "bennuide-ai-view": [
+        {
+          "type": "webview",
+          "id": "bennuide.aiChatView",
+          "name": "BennuGD2 AI Assistant"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "bennuide.explainError",
+        "title": "BennuIDE AI: Explicar Error de Compilación",
+        "category": "BennuIDE AI"
+      },
+      {
+        "command": "bennuide.scaffoldGame",
+        "title": "BennuIDE AI: Generar Esqueleto de Videojuego",
+        "category": "BennuIDE AI"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

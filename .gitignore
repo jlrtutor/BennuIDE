@@ -1,0 +1,10 @@
+# Logs & temp
+node_modules/
+dist/
+out/
+build/
+*.vsix
+.DS_Store
+.vscode-test/
+scratch/
+tmp/

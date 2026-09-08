@@ -1,0 +1,151 @@
+{
+  "Program Skeleton": {
+    "prefix": "program",
+    "body": [
+      "import \"libmod_gfx\";",
+      "import \"libmod_input\";",
+      "import \"libmod_misc\";",
+      "",
+      "program ${1:MyGame};",
+      "global",
+      "    ${2:// Global variables}",
+      "end",
+      "",
+      "begin",
+      "    set_mode(640, 480);",
+      "    set_fps(60, 0);",
+      "    window_set_title(\"${3:My BennuGD2 Game}\");",
+      "",
+      "    ${4:// Start main process or game loop}",
+      "",
+      "    while (!key(_esc))",
+      "        frame;",
+      "    end",
+      "end"
+    ],
+    "description": "Create a full BennuGD2 Program skeleton"
+  },
+  "Process Definition": {
+    "prefix": "process",
+    "body": [
+      "process ${1:Player}(${2:x, y})",
+      "private",
+      "    ${3:// Private variables}",
+      "end",
+      "",
+      "begin",
+      "    graph = ${4:1};",
+      "    loop",
+      "        ${5:// Process logic}",
+      "        frame;",
+      "    end",
+      "end"
+    ],
+    "description": "Create a BennuGD2 Process definition"
+  },
+  "Function Definition": {
+    "prefix": "function",
+    "body": [
+      "function ${1:int} ${2:calculate}(${3:int a, int b})",
+      "private",
+      "    ${4:// Private variables}",
+      "end",
+      "",
+      "begin",
+      "    ${5:return a + b;}",
+      "end"
+    ],
+    "description": "Create a BennuGD2 Function definition"
+  },
+  "Struct Definition": {
+    "prefix": "struct",
+    "body": [
+      "struct ${1:TEntity}",
+      "    int id;",
+      "    int x;",
+      "    int y;",
+      "    int health;",
+      "end"
+    ],
+    "description": "Create a struct definition"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while (${1:condition})",
+      "    ${2:// body}",
+      "    frame;",
+      "end"
+    ],
+    "description": "While loop"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for (${1:i} = ${2:0}; ${1:i} < ${3:10}; ${1:i}++)",
+      "    ${4:// body}",
+      "end"
+    ],
+    "description": "For loop"
+  },
+  "Repeat Loop": {
+    "prefix": "repeat",
+    "body": [
+      "repeat",
+      "    ${1:// body}",
+      "    frame;",
+      "until (${2:condition});"
+    ],
+    "description": "Repeat until loop"
+  },
+  "Switch Statement": {
+    "prefix": "switch",
+    "body": [
+      "switch (${1:expression})",
+      "    case ${2:1}:",
+      "        ${3:// case 1}",
+      "    end",
+      "    default:",
+      "        ${4:// default}",
+      "    end",
+      "end"
+    ],
+    "description": "Switch statement"
+  },
+  "Global Block": {
+    "prefix": "global",
+    "body": [
+      "global",
+      "    ${1:// Global variables}",
+      "end"
+    ],
+    "description": "Global declaration block"
+  },
+  "Local Block": {
+    "prefix": "local",
+    "body": [
+      "local",
+      "    ${1:// Local variables added to all processes}",
+      "end"
+    ],
+    "description": "Local declaration block"
+  },
+  "Private Block": {
+    "prefix": "private",
+    "body": [
+      "private",
+      "    ${1:// Private variables}",
+      "end"
+    ],
+    "description": "Private declaration block"
+  },
+  "Constant Block": {
+    "prefix": "const",
+    "body": [
+      "const",
+      "    ${1:MAX_ENEMIES} = ${2:50};",
+      "end"
+    ],
+    "description": "Constants declaration block"
+  }
+}

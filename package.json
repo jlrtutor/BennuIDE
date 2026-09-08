@@ -1,0 +1,27 @@
+{
+  "name": "bennuide-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BennuIDE - Integrated Development Environment for BennuGD2",
+  "workspaces": [
+    "extensions/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "package": "npm run package --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "keywords": [
+    "bennugd",
+    "bennugd2",
+    "ide",
+    "gamedev",
+    "fpg",
+    "fnx",
+    "fnt"
+  ],
+  "author": "Juan Luis Ramírez Tutor",
+  "license": "MIT"
+}

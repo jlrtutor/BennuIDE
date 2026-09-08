@@ -1,0 +1,50 @@
+{
+  "name": "bennugd2-fnt-editor",
+  "displayName": "BennuGD2 FNT / FNX Font Editor & Generator",
+  "description": "Visual editor and TrueType generator for BennuGD2 .fnx and .fnt bitmap font files.",
+  "version": "1.0.0",
+  "publisher": "bennuide",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "bennugd2.fntEditor",
+        "displayName": "BennuGD Font Editor (FNT / FNX)",
+        "selector": [
+          {
+            "filenamePattern": "*.fnt"
+          },
+          {
+            "filenamePattern": "*.fnx"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "bennugd2.newFont",
+        "title": "BennuGD2: Create New Font from TTF...",
+        "category": "BennuGD2"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

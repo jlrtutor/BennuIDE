@@ -1,0 +1,55 @@
+name: Build BennuIDE Desktop Application
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            artifact_name: BennuIDE-Windows-x64
+          - os: macos-13
+            platform: darwin
+            arch: x64
+            artifact_name: BennuIDE-macOS-Intel-x64
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+            artifact_name: BennuIDE-macOS-AppleSilicon-arm64
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+            artifact_name: BennuIDE-Linux-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build and Bundle Extensions
+        run: |
+          npm install -g @vscode/vsce
+          cd extensions/bennugd2-language && npm install && npm run compile && vsce package --no-dependencies -o ../../packages/builtin-extensions/
+          cd ../../extensions/bennugd2-fpg-editor && npm install && npm run compile && vsce package --no-dependencies -o ../../packages/builtin-extensions/
+          cd ../../extensions/bennugd2-fnt-editor && npm install && npm run compile && vsce package --no-dependencies -o ../../packages/builtin-extensions/
+          cd ../../packages/bennuide-ai-agent && npm install && npm run compile && vsce package --no-dependencies -o ../../packages/builtin-extensions/
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: packages/builtin-extensions/*.vsix

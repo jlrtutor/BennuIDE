@@ -1,0 +1,224 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "BennuGD2",
+  "scopeName": "source.bennugd2",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#preprocessor"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#process-control"
+    },
+    {
+      "include": "#control-flow"
+    },
+    {
+      "include": "#storage-types"
+    },
+    {
+      "include": "#builtin-constants"
+    },
+    {
+      "include": "#process-variables"
+    },
+    {
+      "include": "#builtin-functions"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#function-call"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.bennugd2",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.bennugd2",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        {
+          "name": "meta.preprocessor.bennugd2",
+          "match": "^\\s*(#\\s*(?:define|undef|ifdef|ifndef|else|endif|if|pragma|include|embed_file|decode_utf8_strings|no_decode_utf8_strings))\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.directive.bennugd2"
+            }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.bennugd2",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.bennugd2",
+              "match": "\\\\(?:[nrtvbf\\\\\"']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.bennugd2",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.bennugd2",
+              "match": "\\\\(?:[nrtvbf\\\\\"']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.bennugd2",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.bennugd2",
+          "match": "\\b0[bB][01]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.bennugd2",
+          "match": "\\b[0-9]+\\.[0-9]+(?:[eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.bennugd2",
+          "match": "\\b[0-9]+(?:[eE][+-]?[0-9]+)?\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.process.bennugd2",
+          "match": "\\b(?i:(program|process|function|declare|import|include|embed_file))\\b"
+        },
+        {
+          "name": "keyword.declaration.scope.bennugd2",
+          "match": "\\b(?i:(global|local|private|public|const|type|struct|dup|pointer))\\b"
+        },
+        {
+          "name": "keyword.control.block.bennugd2",
+          "match": "\\b(?i:(begin|end))\\b"
+        }
+      ]
+    },
+    "process-control": {
+      "patterns": [
+        {
+          "name": "keyword.control.process.bennugd2",
+          "match": "\\b(?i:(frame|signal|clone|kill|sleep|wakeup|freeze|unfreeze|let_me_alone|exit_process|yield))\\b"
+        }
+      ]
+    },
+    "control-flow": {
+      "patterns": [
+        {
+          "name": "keyword.control.conditional.bennugd2",
+          "match": "\\b(?i:(if|else|elseif|elsif|elif|switch|case|default))\\b"
+        },
+        {
+          "name": "keyword.control.loop.bennugd2",
+          "match": "\\b(?i:(while|loop|repeat|until|for|from|to|step))\\b"
+        },
+        {
+          "name": "keyword.control.flow.bennugd2",
+          "match": "\\b(?i:(break|continue|return|goto|jmp|call|onexit|onerror|on|exit|error|resume|next))\\b"
+        }
+      ]
+    },
+    "storage-types": {
+      "patterns": [
+        {
+          "name": "storage.type.bennugd2",
+          "match": "\\b(?i:(int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|byte|word|dword|qword|short|long|sbyte|char|string|float|double|bool|boolean|signed|unsigned|void))\\b"
+        }
+      ]
+    },
+    "builtin-constants": {
+      "patterns": [
+        {
+          "name": "constant.language.bennugd2",
+          "match": "\\b(?i:(true|false|null|nil|undefined|mouse))\\b"
+        },
+        {
+          "name": "constant.other.signal.bennugd2",
+          "match": "\\b(?i:(s_kill|s_wakeup|s_sleep|s_freeze|s_unfreeze|s_kill_tree|s_wakeup_tree|s_sleep_tree|s_freeze_tree|s_unfreeze_tree))\\b"
+        },
+        {
+          "name": "constant.other.enum.bennugd2",
+          "match": "\\b(?i:(g_width|g_height|g_center_x|g_center_y|g_x_center|g_y_center|g_pitch|g_depth|b_clear|q_nearest|q_linear|q_best|q_mipmap|charset_iso8859|charset_cp850|nfb_variablewidth|nfb_fixedwidth|all_text|align_top_left|align_top|align_top_right|align_center_left|align_center|align_center_right|align_bottom_left|align_bottom|align_bottom_right|pf_diag|pf_manhattan|pf_euclidean|pf_octile|pf_chebyshev))\\b"
+        }
+      ]
+    },
+    "process-variables": {
+      "patterns": [
+        {
+          "name": "variable.language.process.bennugd2",
+          "match": "\\b(?i:(id|father|son|brother|caller|x|y|z|file|graph|size|size_x|size_y|angle|flags|region|resolution|alpha|color_r|color_g|color_b|clip|center|ctype|cnumber|xgraph|render_file|render_graph|blendmode|custom_blendmode|shader|shader_params|small_block|priority))\\b"
+        }
+      ]
+    },
+    "builtin-functions": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.bennugd2",
+          "match": "\\b(?i:(write|write_var|write_value|write_move|write_delete|write_in_map|write_get_rgba|write_set_rgba|text_width|text_height|load_fpg|fpg_load|fpg_new|fpg_add|fpg_exists|fpg_unload|fpg_del|load_map|map_load|map_new|map_clear|map_clone|map_name|map_set_name|map_exists|map_unload|map_del|map_save|map_get_pixel|map_put_pixel|map_put|map_block_copy|graphic_set|graphic_info|map_info|map_info_set|point_get|point_set|center_set|point_get_total|box_set|box_get|box_get_by_pos|rgb|rgba|rgb_get|rgba_get|fade|fade_on|fade_off|set_mode|set_fps|window_set_title|window_set_icon|window_move|window_set_pos|window_get_pos|window_get_size|desktop_get_size|window_hide|window_show|window_minimize|window_maximize|window_raise|window_restore|screen_get|advance|xadvance|get_angle|get_dist|get_real_point|collision|scroll_start|scroll_stop|scroll_move|region_define|region_out|load_fnt|fnt_load|fnt_new|fnt_unload|fnt_del|sound_load|sound_play|sound_stop|sound_pause|sound_resume|sound_unload|music_load|music_play|music_stop|music_pause|music_resume|music_unload|key|mouse|joy_get_button|joy_get_position|joy_num|abs|acos|asin|atan|atan2|cos|sin|tan|sqrt|pow|rand|rand_seed|get_timer|sleep_ms|time|say|exit|get_id|signal|exists))\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.logical.bennugd2",
+          "match": "\\b(?i:(and|or|xor|not|band|bor|bxor|bnot|sizeof|offset|type))\\b"
+        },
+        {
+          "name": "keyword.operator.symbolic.bennugd2",
+          "match": "(==|!=|<>|>=|<=|=>|=<|\\+\\+|--|\\+=|-=|\\*=|/=|%=|&=|\\^=|\\|=|<<=|>>=|&&|\\|\\||\\^\\^|<<|>>|[+\\-*/%=<>!&|^~?:])"
+        }
+      ]
+    },
+    "function-call": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.bennugd2"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
