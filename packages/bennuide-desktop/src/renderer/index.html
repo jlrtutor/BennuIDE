@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BennuIDE - Game Development Studio</title>
+  <!-- Load Monaco Editor via CDN/Local bundle -->
+  <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
+  <style>
+    :root {
+      --bg-dark: #1a1b26;
+      --sidebar-dark: #16161e;
+      --fg-dark: #abb2bf;
+      --accent: #61afef;
+      --accent-hover: #5294cb;
+      --border-dark: #2e3240;
+
+      --bg-light: #ffffff;
+      --sidebar-light: #f0f0f0;
+      --fg-light: #000000;
+      --border-light: #d0d0d0;
+    }
+
+    body.theme-dark {
+      --bg: var(--bg-dark);
+      --sidebar: var(--sidebar-dark);
+      --fg: var(--fg-dark);
+      --border: var(--border-dark);
+    }
+
+    body.theme-light {
+      --bg: var(--bg-light);
+      --sidebar: var(--sidebar-light);
+      --fg: var(--fg-light);
+      --border: var(--border-light);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; -webkit-user-select: none; }
+
+    /* Titlebar */
+    .titlebar { height: 38px; background: var(--sidebar); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 80px; -webkit-app-region: drag; }
+    .title-text { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .title-badge { background: rgba(97, 175, 239, 0.15); color: var(--accent); padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+    .title-actions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+    .btn { background: var(--accent); color: #fff; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: 0.15s; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--border); color: var(--fg); }
+
+    /* Main Area */
+    .workbench { flex: 1; display: flex; overflow: hidden; }
+    .sidebar { width: 260px; background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar-header { padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #7f848e; border-bottom: 1px solid var(--border); }
+    .file-tree { flex: 1; overflow-y: auto; padding: 6px; }
+    .file-item { padding: 6px 10px; font-size: 13px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .file-item:hover { background: rgba(255,255,255,0.05); }
+    .file-item.active { background: rgba(97, 175, 239, 0.2); color: var(--accent); }
+
+    /* Content */
+    .editor-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .tabs-bar { height: 35px; background: var(--sidebar); border-bottom: 1px solid var(--border); display: flex; align-items: center; overflow-x: auto; }
+    .tab { padding: 0 16px; height: 100%; display: flex; align-items: center; font-size: 12px; border-right: 1px solid var(--border); cursor: pointer; background: var(--sidebar); color: #7f848e; }
+    .tab.active { background: var(--bg); color: var(--fg); border-top: 2px solid var(--accent); }
+    .editor-viewport { flex: 1; position: relative; }
+    #monacoEditor { width: 100%; height: 100%; }
+
+    /* Output Console */
+    .console-panel { height: 160px; background: #111218; border-top: 1px solid var(--border); display: flex; flex-direction: column; }
+    .console-header { height: 26px; padding: 0 12px; background: var(--sidebar); font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: space-between; }
+    .console-log { flex: 1; padding: 8px 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; color: #abb2bf; overflow-y: auto; white-space: pre-wrap; }
+
+    /* Status Bar */
+    .statusbar { height: 24px; background: var(--sidebar); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 11px; color: #7f848e; }
+  </style>
+</head>
+<body class="theme-dark">
+  <!-- Titlebar -->
+  <div class="titlebar">
+    <div class="title-text">
+      <span>🎮 BennuIDE</span>
+      <span class="title-badge">BennuGD2 Studio</span>
+      <span id="currentFileName" style="color:#7f848e; font-weight:normal; font-size:12px;">main.prg</span>
+    </div>
+    <div class="title-actions">
+      <button class="btn" onclick="runCompileAndPlay()">▶ Compilar y Ejecutar (F5)</button>
+      <button class="btn btn-secondary" onclick="runCompile()">⚙ Compilar</button>
+      <button class="btn btn-secondary" onclick="toggleTheme()" id="themeBtn">☀️ Tema Claro</button>
+    </div>
+  </div>
+
+  <!-- Workbench -->
+  <div class="workbench">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">Explorador de Proyecto</div>
+      <div class="file-tree" id="fileTree">
+        <div class="file-item active" onclick="loadDefaultGame()">📄 main.prg</div>
+        <div class="file-item" onclick="openFpgEditor()">🎨 sprites.fpg</div>
+        <div class="file-item" onclick="openFntEditor()">🔤 font.fnx</div>
+      </div>
+      <div class="sidebar-header" style="border-top: 1px solid var(--border);">Asistente IA BennuGD2</div>
+      <div style="padding: 10px; font-size: 12px; line-height: 1.4; color:#888;">
+        🤖 Asistente contextualizado con funciones de <code>libmod_gfx</code>, <code>libmod_sound</code> e hilos concurrentes.
+      </div>
+    </div>
+
+    <!-- Editor Area -->
+    <div class="editor-container">
+      <div class="tabs-bar" id="tabsBar">
+        <div class="tab active" id="tabMain">main.prg</div>
+      </div>
+      <div class="editor-viewport">
+        <div id="monacoEditor"></div>
+      </div>
+
+      <!-- Console Panel -->
+      <div class="console-panel">
+        <div class="console-header">
+          <span>SALIDA DE COMPILACIÓN / CONSOLA</span>
+          <button style="background:none; border:none; color:#888; cursor:pointer;" onclick="clearConsole()">Limpiar</button>
+        </div>
+        <div class="console-log" id="consoleOutput">BennuIDE iniciado para Apple Silicon (ARM64). Listo para desarrollar con BennuGD2.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="statusbar">
+    <div style="display:flex; gap:12px;">
+      <span>🟢 BennuGD2 Engine</span>
+      <span>UTF-8</span>
+    </div>
+    <div>
+      <span>BennuIDE v1.0.0 (macOS arm64)</span>
+    </div>
+  </div>
+
+  <!-- Monaco loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <script>
+    let editor;
+    let currentFilePath = 'main.prg';
+    let currentTheme = 'bennuide-dark';
+
+    const SAMPLE_GAME = `// BennuIDE - Star Shooter 2D (BennuGD2)
+import "libmod_gfx";
+import "libmod_input";
+import "libmod_misc";
+
+global
+    int score = 0;
+end
+
+program StarShooter;
+begin
+    set_mode(800, 600);
+    set_fps(60, 0);
+    window_set_title("BennuIDE - Game Studio");
+
+    write(0, 10, 10, ALIGN_TOP_LEFT, "Puntuación:");
+    write_var(0, 110, 10, ALIGN_TOP_LEFT, &score);
+
+    Player(400, 500);
+
+    while (!key(_esc))
+        frame;
+    end
+end
+
+process Player(x, y)
+private
+    int speed = 5;
+end
+begin
+    graph = 1;
+    loop
+        if (key(_left)) x -= speed; end
+        if (key(_right)) x += speed; end
+        if (key(_up)) y -= speed; end
+        if (key(_down)) y += speed; end
+        frame;
+    end
+end`;
+
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      // Register BennuGD2 Language in Monaco
+      monaco.languages.register({ id: 'bennugd2' });
+
+      monaco.languages.setMonarchTokensProvider('bennugd2', {
+        keywords: [
+          'program', 'process', 'function', 'begin', 'end', 'global', 'local', 'private', 'public',
+          'const', 'type', 'struct', 'if', 'else', 'elseif', 'switch', 'case', 'default',
+          'while', 'loop', 'repeat', 'until', 'for', 'from', 'to', 'step', 'break', 'continue',
+          'return', 'frame', 'signal', 'clone', 'import', 'include', 'declare', 'int', 'string',
+          'float', 'byte', 'word', 'dword', 'char', 'let_me_alone', 'exit'
+        ],
+        tokenizer: {
+          root: [
+            [/[a-zA-Z_]\\w*/, {
+              cases: {
+                '@keywords': 'keyword',
+                '@default': 'identifier'
+              }
+            }],
+            { include: '@whitespace' },
+            [/\\d+/, 'number'],
+            [/"([^"\\\\]|\\\\.)*"/, 'string'],
+            [/'([^'\\\\]|\\\\.)*'/, 'string']
+          ],
+          whitespace: [
+            [/[ \\t\\r\\n]+/, 'white'],
+            [/\\/\\*/, 'comment', '@comment'],
+            [/\\/\\/.*$/, 'comment']
+          ],
+          comment: [
+            [/[^\\/*]+/, 'comment'],
+            [/\\*\\//, 'comment', '@pop'],
+            [/[\\/*]/, 'comment']
+          ]
+        }
+      });
+
+      // Dark Theme (One Dark Pro)
+      monaco.editor.defineTheme('bennuide-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'keyword', foreground: 'c678dd', fontStyle: 'bold' },
+          { token: 'identifier', foreground: '61afef' },
+          { token: 'number', foreground: 'd19a66' },
+          { token: 'string', foreground: '98c379' },
+          { token: 'comment', foreground: '5c6370', fontStyle: 'italic' }
+        ],
+        colors: {
+          'editor.background': '#1a1b26',
+          'editor.foreground': '#abb2bf',
+          'editor.lineHighlightBackground': '#1e202e',
+          'editorCursor.foreground': '#528bff'
+        }
+      });
+
+      // Light Theme (PowerShell ISE)
+      monaco.editor.defineTheme('bennuide-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+          { token: 'keyword', foreground: '0000ff', fontStyle: 'bold' },
+          { token: 'identifier', foreground: '000080' },
+          { token: 'number', foreground: '000080' },
+          { token: 'string', foreground: '800000' },
+          { token: 'comment', foreground: '008000', fontStyle: 'italic' }
+        ],
+        colors: {
+          'editor.background': '#ffffff',
+          'editor.foreground': '#000000',
+          'editor.lineHighlightBackground': '#f5f5f5'
+        }
+      });
+
+      editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+        value: SAMPLE_GAME,
+        language: 'bennugd2',
+        theme: 'bennuide-dark',
+        automaticLayout: true,
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace",
+        minimap: { enabled: true }
+      });
+    });
+
+    function appendConsole(msg) {
+      const el = document.getElementById('consoleOutput');
+      el.innerText += '\\n' + msg;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('consoleOutput').innerText = '';
+    }
+
+    async function runCompile() {
+      if (!window.bennuAPI) {
+        appendConsole('[SIMULACIÓN] Compilando con bgdc main.prg -> main.dcb (Éxito)');
+        return;
+      }
+      appendConsole('=== Compilando con bgdc: ' + currentFilePath + ' ===');
+      const res = await window.bennuAPI.runCompiler({ filePath: currentFilePath });
+      appendConsole(res.output || (res.code === 0 ? 'Compilación exitosa (0 errores).' : 'Error de compilación.'));
+    }
+
+    async function runCompileAndPlay() {
+      await runCompile();
+      if (window.bennuAPI) {
+        const dcb = currentFilePath.replace(/\\.prg$/i, '.dcb');
+        appendConsole('=== Lanzando intérprete bgdi: ' + dcb + ' ===');
+        await window.bennuAPI.runInterpreter({ dcbPath: dcb });
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.body.classList.contains('theme-dark');
+      if (isDark) {
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+        document.getElementById('themeBtn').innerText = '🌙 Tema Oscuro';
+        monaco.editor.setTheme('bennuide-light');
+      } else {
+        document.body.classList.remove('theme-light');
+        document.body.classList.add('theme-dark');
+        document.getElementById('themeBtn').innerText = '☀️ Tema Claro';
+        monaco.editor.setTheme('bennuide-dark');
+      }
+    }
+
+    function loadDefaultGame() {
+      if (editor) editor.setValue(SAMPLE_GAME);
+    }
+  </script>
+</body>
+</html>

@@ -8,8 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "package": "npm run package --workspaces --if-present",
+    "compile": "npm run compile --workspaces --if-present",
+    "build": "npm run compile --workspaces --if-present",
+    "package:all": "npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-language && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fpg-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fnt-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix packages/bennuide-ai-agent",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
@@ -23,5 +24,11 @@
     "fnt"
   ],
   "author": "Juan Luis Ramírez Tutor",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "7zip-bin": "^5.2.0",
+    "7zip-bin-mac": "^1.0.1",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
+  }
 }

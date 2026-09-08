@@ -1,0 +1,48 @@
+{
+  "name": "bennuide-desktop",
+  "version": "1.0.0",
+  "description": "BennuIDE - Entorno de Desarrollo Integrado para BennuGD2",
+  "author": "Juan Luis Ramírez Tutor",
+  "license": "MIT",
+  "main": "out/main.js",
+  "scripts": {
+    "compile": "../../node_modules/.bin/tsc && mkdir -p out/renderer && cp -r src/renderer/* out/renderer/",
+    "package:mac-arm64": "npm run compile && ../../node_modules/.bin/electron-builder --mac --arm64 -c.mac.identity=null"
+  },
+  "build": {
+    "appId": "org.bennugd.bennuide",
+    "productName": "BennuIDE",
+    "electronVersion": "28.3.3",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*",
+      "!**/examples/**",
+      "!**/*.map"
+    ],
+    "directories": {
+      "output": "../../dist/desktop"
+    }
+  },
+  "dependencies": {
+    "monaco-editor": "^0.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "7zip-bin": "^5.2.0",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  }
+}
