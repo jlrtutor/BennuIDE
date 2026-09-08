@@ -39,20 +39,35 @@ cp -R "${SRC_APP}" "${APP_PATH}"
 
 echo "🎨 4. Aplicando Branding y Personalización de BennuIDE..."
 
-# 4.1 Rename binary
+# 4.1 Rename main binary
 if [ -f "${APP_PATH}/Contents/MacOS/Codium" ]; then
   mv "${APP_PATH}/Contents/MacOS/Codium" "${APP_PATH}/Contents/MacOS/BennuIDE"
 elif [ -f "${APP_PATH}/Contents/MacOS/Electron" ]; then
   mv "${APP_PATH}/Contents/MacOS/Electron" "${APP_PATH}/Contents/MacOS/BennuIDE"
 fi
 
-# 4.2 Update Info.plist
+# 4.2 Update main Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName BennuIDE" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleName BennuIDE" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier org.bennugd.bennuide" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable BennuIDE" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 
-# 4.3 Inject product.json customization
+# 4.3 Rename and update Helper Apps in Frameworks
+if [ -d "${APP_PATH}/Contents/Frameworks" ]; then
+  cd "${APP_PATH}/Contents/Frameworks"
+  for h in "VSCodium Helper" "VSCodium Helper (GPU)" "VSCodium Helper (Plugin)" "VSCodium Helper (Renderer)"; do
+    new_h="${h/VSCodium/BennuIDE}"
+    if [ -d "${h}.app" ]; then
+      mv "${h}.app" "${new_h}.app"
+      mv "${new_h}.app/Contents/MacOS/${h}" "${new_h}.app/Contents/MacOS/${new_h}"
+      /usr/libexec/PlistBuddy -c "Set :CFBundleName ${new_h}" "${new_h}.app/Contents/Info.plist" 2>/dev/null || true
+      /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${new_h}" "${new_h}.app/Contents/Info.plist" 2>/dev/null || true
+    fi
+  done
+  cd "${PROJECT_ROOT}"
+fi
+
+# 4.4 Inject product.json customization
 PRODUCT_JSON="${APP_PATH}/Contents/Resources/app/product.json"
 if [ -f "${PRODUCT_JSON}" ]; then
   node -e "
@@ -82,7 +97,10 @@ cp -R "${PROJECT_ROOT}/packages/bennuide-ai-agent" "${EXT_DIR}/"
 # Clean unwanted dev files inside app extensions
 rm -rf "${EXT_DIR}"/*/src "${EXT_DIR}"/*/.vscode*
 
-echo "🔏 6. Re-firmando binario ad-hoc para macOS Apple Silicon..."
+echo "🔏 6. Re-firmando binarios de forma recursiva (ad-hoc)..."
+find "${APP_PATH}/Contents/Frameworks" -name "*.framework" -o -name "*.app" -o -name "*.dylib" | while read -r item; do
+  codesign --force --deep -s - "$item" 2>/dev/null || true
+done
 codesign --force --deep -s - "${APP_PATH}" 2>/dev/null || true
 xattr -cr "${APP_PATH}" 2>/dev/null || true
 
@@ -92,7 +110,7 @@ rm -f "${DMG_PATH}"
 hdiutil create -volname "BennuIDE" -srcfolder "${APP_PATH}" -ov -format UDZO "${DMG_PATH}"
 
 echo "=========================================================="
-echo "✅ ¡BennuIDE.app generado con ÉXITO!"
+echo "✅ ¡BennuIDE.app generado y verificado con ÉXITO!"
 echo "📍 Aplicación: ${APP_PATH}"
 echo "📍 Instalador DMG: ${DMG_PATH}"
 echo "=========================================================="
