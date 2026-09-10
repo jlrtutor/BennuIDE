@@ -3,10 +3,10 @@
   "displayName": "BennuGD2 FNT / FNX Font Editor & Generator",
   "description": "Visual editor and TrueType generator for BennuGD2 .fnx and .fnt bitmap font files.",
   "version": "1.0.0",
-  "publisher": "bennuide",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "*"
   },
   "categories": [
     "Other",
@@ -44,7 +44,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

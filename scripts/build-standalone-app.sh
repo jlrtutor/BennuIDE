@@ -73,7 +73,30 @@ if [ -d "${APP_PATH}/Contents/Frameworks" ]; then
   cd "${PROJECT_ROOT}"
 fi
 
-# 4.4 Inject product.json customization and default BennuGD settings
+# 4.4 Add document associations to main Info.plist
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0 dict" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeName string 'BennuGD2 Source File'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string 'Editor'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions array" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:0 string 'prg'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:1 string 'inc'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:2 string 'bgd'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1 dict" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1:CFBundleTypeName string 'BennuGD FPG Sprite Package'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1:CFBundleTypeRole string 'Editor'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1:CFBundleTypeExtensions array" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1:CFBundleTypeExtensions:0 string 'fpg'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:1:CFBundleTypeExtensions:1 string 'map'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2 dict" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeName string 'BennuGD Font File'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeRole string 'Editor'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeExtensions array" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeExtensions:0 string 'fnt'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeExtensions:1 string 'fnx'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+
+# 4.5 Inject product.json customization and default BennuGD settings
 PRODUCT_JSON="${APP_PATH}/Contents/Resources/app/product.json"
 if [ -f "${PRODUCT_JSON}" ]; then
   node -e "
@@ -86,12 +109,33 @@ if [ -f "${PRODUCT_JSON}" ]; then
     data.win32AppId = 'BennuIDE';
     data.darwinBundleIdentifier = 'org.bennugd.bennuide';
     data.reportIssueUrl = 'https://github.com/SplinterGU/BennuGD2';
+    data.locale = 'es';
+    data.defaultLocale = 'es';
+    data.commit = 'bennuide-' + Date.now();
+    data.builtInExtensions = data.builtInExtensions || [];
+    const customBuiltins = [
+      { name: 'vscode.bennugd2-language', version: '1.0.0' },
+      { name: 'vscode.bennugd2-fpg-editor', version: '1.0.0' },
+      { name: 'vscode.bennugd2-fnt-editor', version: '1.0.0' },
+      { name: 'vscode.bennuide-ai-agent', version: '1.0.0' },
+      { name: 'MS-CEINTL.vscode-language-pack-es', version: '1.87.0' }
+    ];
+    for (const ext of customBuiltins) {
+      if (!data.builtInExtensions.some(b => b.name === ext.name)) {
+        data.builtInExtensions.push(ext);
+      }
+    }
     data.configurationDefaults = {
       'workbench.colorTheme': 'BennuIDE Dark (One Dark Pro)',
+      'locale': 'es',
+      'workbench.editor.languageDetection': false,
       'files.associations': {
         '*.prg': 'bennugd2',
+        '*.PRG': 'bennugd2',
         '*.inc': 'bennugd2',
-        '*.bgd': 'bennugd2'
+        '*.INC': 'bennugd2',
+        '*.bgd': 'bennugd2',
+        '*.BGD': 'bennugd2'
       },
       'workbench.editor.customEditors': [
         {
@@ -99,12 +143,24 @@ if [ -f "${PRODUCT_JSON}" ]; then
           'filenamePattern': '*.fpg'
         },
         {
+          'viewType': 'bennugd2.fpgEditor',
+          'filenamePattern': '*.FPG'
+        },
+        {
           'viewType': 'bennugd2.fntEditor',
           'filenamePattern': '*.fnt'
         },
         {
           'viewType': 'bennugd2.fntEditor',
+          'filenamePattern': '*.FNT'
+        },
+        {
+          'viewType': 'bennugd2.fntEditor',
           'filenamePattern': '*.fnx'
+        },
+        {
+          'viewType': 'bennugd2.fntEditor',
+          'filenamePattern': '*.FNX'
         }
       ]
     };
@@ -122,7 +178,7 @@ unzip -q -o "${BUILD_DIR}/es-lang.vsix" -d "${BUILD_DIR}/es-extracted"
 rm -rf "${EXT_DIR}/ms-ceintl.vscode-language-pack-es"
 cp -R "${BUILD_DIR}/es-extracted/extension" "${EXT_DIR}/ms-ceintl.vscode-language-pack-es"
 
-# 5.2 Copy BennuGD2 built-in extensions with full node_modules
+# 5.2 Copy BennuGD2 built-in extensions (self-contained bundled)
 copy_extension() {
   local src="$1"
   local name="$(basename "$src")"
@@ -152,8 +208,28 @@ DMG_PATH="${DIST_DIR}/BennuIDE-macOS-AppleSilicon.dmg"
 rm -f "${DMG_PATH}"
 hdiutil create -volname "BennuIDE" -srcfolder "${APP_PATH}" -ov -format UDZO "${DMG_PATH}"
 
+# 8. Sincronizar con /Applications si ya estaba instalado
+if [ -d "/Applications/BennuIDE.app" ]; then
+  echo "🔄 Actualizando /Applications/BennuIDE.app..."
+  rm -rf "/Applications/BennuIDE.app"
+  cp -R "${APP_PATH}" "/Applications/BennuIDE.app"
+fi
+
+# 9. Limpiar caches locales de extensiones y estado de perfiles para forzar recarga inmediata
+pkill -f "/Applications/BennuIDE.app" 2>/dev/null || true
+pkill -f "BennuIDE" 2>/dev/null || true
+sleep 1
+rm -rf "${HOME}/Library/Application Support/BennuIDE/CachedProfilesData"
+rm -rf "${HOME}/Library/Application Support/BennuIDE/CachedData"
+rm -rf "${HOME}/Library/Application Support/BennuIDE/logs"
+rm -rf "${HOME}/Library/Application Support/BennuIDE/clp"
+rm -rf "${HOME}/Library/Application Support/BennuIDE/User/workspaceStorage"
+
 echo "=========================================================="
 echo "✅ ¡BennuIDE.app generado y verificado con ÉXITO!"
 echo "📍 Aplicación: ${APP_PATH}"
 echo "📍 Instalador DMG: ${DMG_PATH}"
+if [ -d "/Applications/BennuIDE.app" ]; then
+  echo "📍 Instalado en: /Applications/BennuIDE.app"
+fi
 echo "=========================================================="

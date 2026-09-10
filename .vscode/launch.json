@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Lanzar BennuIDE (Todas las Extensiones)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/bennugd2-language",
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/bennugd2-fpg-editor",
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/bennugd2-fnt-editor",
+        "--extensionDevelopmentPath=${workspaceFolder}/packages/bennuide-ai-agent",
+        "${workspaceFolder}/examples/shooter_sample"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/extensions/*/out/**/*.js",
+        "${workspaceFolder}/packages/*/out/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile"
+    }
+  ]
+}

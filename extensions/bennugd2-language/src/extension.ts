@@ -13,6 +13,21 @@ let client: LanguageClient;
 let compiler: BennuCompiler;
 
 export function activate(context: vscode.ExtensionContext) {
+  // 0. Auto-enforce BennuGD2 language mode on .prg / .inc / .bgd files
+  const enforceBennuLanguage = (doc: vscode.TextDocument) => {
+    if (!doc || !doc.fileName) return;
+    const ext = path.extname(doc.fileName).toLowerCase();
+    if (['.prg', '.inc', '.bgd'].includes(ext) && doc.languageId !== 'bennugd2') {
+      vscode.languages.setTextDocumentLanguage(doc, 'bennugd2');
+    }
+  };
+
+  vscode.workspace.textDocuments.forEach(enforceBennuLanguage);
+  context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(enforceBennuLanguage));
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
+    if (editor?.document) enforceBennuLanguage(editor.document);
+  }));
+
   const outputChannel = vscode.window.createOutputChannel('BennuGD2');
   const diagnosticCollection = vscode.languages.createDiagnosticCollection('bennugd2');
   compiler = new BennuCompiler(outputChannel, diagnosticCollection);

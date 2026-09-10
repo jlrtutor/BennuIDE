@@ -18,16 +18,26 @@ export interface BennuFont {
 
 export class FntParser {
   public static parse(buffer: Uint8Array): BennuFont {
+    if (buffer.length === 0) {
+      return {
+        isFnx: true,
+        charsetType: 0,
+        bpp: 32,
+        glyphs: new Array(256).fill(null)
+      };
+    }
+
     if (buffer.length < 12) {
       throw new Error('Archivo de fuente inválido: tamaño insuficiente.');
     }
 
-    const magic = String.fromCharCode(buffer[0], buffer[1], buffer[2]);
-    const isFnx = magic.toLowerCase() === 'fnx';
-    const isFnt = magic.toLowerCase() === 'fnt';
+    const magic = String.fromCharCode(buffer[0], buffer[1], buffer[2]).toLowerCase();
+    const isFnx = magic === 'fnx';
+    const isFnt = magic === 'fnt';
 
     if (!isFnx && !isFnt) {
-      throw new Error('Cabecera de fuente no válida (debe ser "fnx" o "fnt").');
+      // Fallback default rather than fatal crash if possible
+      throw new Error(`Cabecera de fuente no válida "${magic}" (debe ser "fnx" o "fnt").`);
     }
 
     const bpp = buffer[7] || 32;

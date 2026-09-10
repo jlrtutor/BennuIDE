@@ -3,10 +3,10 @@
   "displayName": "BennuGD2 FPG Sprite Collection Editor",
   "description": "Visual editor and manager for BennuGD / BennuGD2 .fpg sprite collection files.",
   "version": "1.0.0",
-  "publisher": "bennuide",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "*"
   },
   "categories": [
     "Other",
@@ -41,7 +41,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

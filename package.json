@@ -29,6 +29,7 @@
     "7zip-bin": "^5.2.0",
     "7zip-bin-mac": "^1.0.1",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
   }
 }

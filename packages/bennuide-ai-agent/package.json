@@ -3,10 +3,10 @@
   "displayName": "BennuIDE AI Coding Agent",
   "description": "Integrated AI assistant for BennuGD2 game development in BennuIDE.",
   "version": "1.0.0",
-  "publisher": "bennuide",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "*"
   },
   "categories": [
     "AI",
@@ -51,7 +51,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

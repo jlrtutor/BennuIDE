@@ -51,6 +51,10 @@
           "match": "//.*$"
         },
         {
+          "name": "comment.line.semicolon.bennugd2",
+          "match": ";.*$"
+        },
+        {
           "name": "comment.block.bennugd2",
           "begin": "/\\*",
           "end": "\\*/"
@@ -61,7 +65,7 @@
       "patterns": [
         {
           "name": "meta.preprocessor.bennugd2",
-          "match": "^\\s*(#\\s*(?:define|undef|ifdef|ifndef|else|endif|if|pragma|include|embed_file|decode_utf8_strings|no_decode_utf8_strings))\\b",
+          "match": "^\\s*(#\\s*(?:[dD][eE][fF][iI][nN][eE]|[uU][nN][dD][eE][fF]|[iI][fF][dD][eE][fF]|[iI][fF][nN][dD][eE][fF]|[eE][lL][sS][eE]|[eE][nN][dD][iI][fF]|[iI][fF]|[pP][rR][aA][gG][mM][aA]|[iI][nN][cC][lL][uU][dD][eE]|[eE][mM][bB][eE][dD]_[fF][iI][lL][eE]|[dD][eE][cC][oO][dD][eE]_[uU][tT][fF]8_[sS][tT][rR][iI][nN][gG][sS]|[nN][oO]_[dD][eE][cC][oO][dD][eE]_[uU][tT][fF]8_[sS][tT][rR][iI][nN][gG][sS]))\\b",
           "captures": {
             "1": {
               "name": "keyword.control.directive.bennugd2"
@@ -79,7 +83,7 @@
           "patterns": [
             {
               "name": "constant.character.escape.bennugd2",
-              "match": "\\\\(?:[nrtvbf\\\\\"']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
+              "match": "\\\\(?:[nrtvbf\"\\']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
             }
           ]
         },
@@ -90,7 +94,7 @@
           "patterns": [
             {
               "name": "constant.character.escape.bennugd2",
-              "match": "\\\\(?:[nrtvbf\\\\\"']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
+              "match": "\\\\(?:[nrtvbf\"\\']|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})"
             }
           ]
         }
@@ -120,15 +124,15 @@
       "patterns": [
         {
           "name": "keyword.declaration.process.bennugd2",
-          "match": "\\b(?i:(program|process|function|declare|import|include|embed_file))\\b"
+          "match": "\\b([pP][rR][oO][gG][rR][aA][mM]|[pP][rR][oO][cC][eE][sS][sS]|[fF][uU][nN][cC][tT][iI][oO][nN]|[dD][eE][cC][lL][aA][rR][eE]|[iI][mM][pP][oO][rR][tT]|[iI][nN][cC][lL][uU][dD][eE]|[eE][mM][bB][eE][dD]_[fF][iI][lL][eE])\\b"
         },
         {
           "name": "keyword.declaration.scope.bennugd2",
-          "match": "\\b(?i:(global|local|private|public|const|type|struct|dup|pointer))\\b"
+          "match": "\\b([gG][lL][oO][bB][aA][lL]|[lL][oO][cC][aA][lL]|[pP][rR][iI][vV][aA][tT][eE]|[pP][uU][bB][lL][iI][cC]|[cC][oO][nN][sS][tT]|[tT][yY][pP][eE]|[sS][tT][rR][uU][cC][tT]|[dD][uU][pP]|[pP][oO][iI][nN][tT][eE][rR])\\b"
         },
         {
           "name": "keyword.control.block.bennugd2",
-          "match": "\\b(?i:(begin|end))\\b"
+          "match": "\\b([bB][eE][gG][iI][nN]|[eE][nN][dD])\\b"
         }
       ]
     },
@@ -136,7 +140,7 @@
       "patterns": [
         {
           "name": "keyword.control.process.bennugd2",
-          "match": "\\b(?i:(frame|signal|clone|kill|sleep|wakeup|freeze|unfreeze|let_me_alone|exit_process|yield))\\b"
+          "match": "\\b([fF][rR][aA][mM][eE]|[sS][iI][gG][nN][aA][lL]|[cC][lL][oO][nN][eE]|[kK][iI][lL][lL]|[sS][lL][eE][eE][pP]|[wW][aA][kK][eE][uU][pP]|[fF][rR][eE][eE][zZ][eE]|[uU][nN][fF][rR][eE][eE][zZ][eE]|[lL][eE][tT]_[mM][eE]_[aA][lL][oO][nN][eE]|[eE][xX][iI][tT]_[pP][rR][oO][cC][eE][sS][sS]|[yY][iI][eE][lL][dD])\\b"
         }
       ]
     },
@@ -144,15 +148,15 @@
       "patterns": [
         {
           "name": "keyword.control.conditional.bennugd2",
-          "match": "\\b(?i:(if|else|elseif|elsif|elif|switch|case|default))\\b"
+          "match": "\\b([iI][fF]|[eE][lL][sS][eE]|[eE][lL][sS][eE][iI][fF]|[eE][lL][sS][iI][fF]|[eE][lL][iI][fF]|[sS][wW][iI][tT][cC][hH]|[cC][aA][sS][eE]|[dD][eE][fF][aA][uU][lL][tT])\\b"
         },
         {
           "name": "keyword.control.loop.bennugd2",
-          "match": "\\b(?i:(while|loop|repeat|until|for|from|to|step))\\b"
+          "match": "\\b([wW][hH][iI][lL][eE]|[lL][oO][oO][pP]|[rR][eE][pP][eE][aA][tT]|[uU][nN][tT][iI][lL]|[fF][oO][rR]|[fF][rR][oO][mM]|[tT][oO]|[sS][tT][eE][pP])\\b"
         },
         {
           "name": "keyword.control.flow.bennugd2",
-          "match": "\\b(?i:(break|continue|return|goto|jmp|call|onexit|onerror|on|exit|error|resume|next))\\b"
+          "match": "\\b([bB][rR][eE][aA][kK]|[cC][oO][nN][tT][iI][nN][uU][eE]|[rR][eE][tT][uU][rR][nN]|[gG][oO][tT][oO]|[jJ][mM][pP]|[cC][aA][lL][lL]|[oO][nN][eE][xX][iI][tT]|[oO][nN][eE][rR][rR][oO][rR]|[oO][nN]|[eE][xX][iI][tT]|[eE][rR][rR][oO][rR]|[rR][eE][sS][uU][mM][eE]|[nN][eE][xX][tT])\\b"
         }
       ]
     },
@@ -160,7 +164,7 @@
       "patterns": [
         {
           "name": "storage.type.bennugd2",
-          "match": "\\b(?i:(int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|byte|word|dword|qword|short|long|sbyte|char|string|float|double|bool|boolean|signed|unsigned|void))\\b"
+          "match": "\\b([iI][nN][tT]|[iI][nN][tT]8|[iI][nN][tT]16|[iI][nN][tT]32|[iI][nN][tT]64|[uU][iI][nN][tT]|[uU][iI][nN][tT]8|[uU][iI][nN][tT]16|[uU][iI][nN][tT]32|[uU][iI][nN][tT]64|[bB][yY][tT][eE]|[wW][oO][rR][dD]|[dD][wW][oO][rR][dD]|[qQ][wW][oO][rR][dD]|[sS][hH][oO][rR][tT]|[lL][oO][nN][gG]|[sS][bB][yY][tT][eE]|[cC][hH][aA][rR]|[sS][tT][rR][iI][nN][gG]|[fF][lL][oO][aA][tT]|[dD][oO][uU][bB][lL][eE]|[bB][oO][oO][lL]|[bB][oO][oO][lL][eE][aA][nN]|[sS][iI][gG][nN][eE][dD]|[uU][nN][sS][iI][gG][nN][eE][dD]|[vV][oO][iI][dD])\\b"
         }
       ]
     },
@@ -168,15 +172,15 @@
       "patterns": [
         {
           "name": "constant.language.bennugd2",
-          "match": "\\b(?i:(true|false|null|nil|undefined|mouse))\\b"
+          "match": "\\b([tT][rR][uU][eE]|[fF][aA][lL][sS][eE]|[nN][uU][lL][lL]|[nN][iI][lL]|[uU][nN][dD][eE][fF][iI][nN][eE][dD]|[mM][oO][uU][sS][eE])\\b"
         },
         {
           "name": "constant.other.signal.bennugd2",
-          "match": "\\b(?i:(s_kill|s_wakeup|s_sleep|s_freeze|s_unfreeze|s_kill_tree|s_wakeup_tree|s_sleep_tree|s_freeze_tree|s_unfreeze_tree))\\b"
+          "match": "\\b([sS]_[kK][iI][lL][lL]|[sS]_[wW][aA][kK][eE][uU][pP]|[sS]_[sS][lL][eE][eE][pP]|[sS]_[fF][rR][eE][eE][zZ][eE]|[sS]_[uU][nN][fF][rR][eE][eE][zZ][eE]|[sS]_[kK][iI][lL][lL]_[tT][rR][eE][eE]|[sS]_[wW][aA][kK][eE][uU][pP]_[tT][rR][eE][eE]|[sS]_[sS][lL][eE][eE][pP]_[tT][rR][eE][eE]|[sS]_[fF][rR][eE][eE][zZ][eE]_[tT][rR][eE][eE]|[sS]_[uU][nN][fF][rR][eE][eE][zZ][eE]_[tT][rR][eE][eE])\\b"
         },
         {
           "name": "constant.other.enum.bennugd2",
-          "match": "\\b(?i:(g_width|g_height|g_center_x|g_center_y|g_x_center|g_y_center|g_pitch|g_depth|b_clear|q_nearest|q_linear|q_best|q_mipmap|charset_iso8859|charset_cp850|nfb_variablewidth|nfb_fixedwidth|all_text|align_top_left|align_top|align_top_right|align_center_left|align_center|align_center_right|align_bottom_left|align_bottom|align_bottom_right|pf_diag|pf_manhattan|pf_euclidean|pf_octile|pf_chebyshev))\\b"
+          "match": "\\b([gG]_[wW][iI][dD][tT][hH]|[gG]_[hH][eE][iI][gG][hH][tT]|[gG]_[cC][eE][nN][tT][eE][rR]_[xX]|[gG]_[cC][eE][nN][tT][eE][rR]_[yY]|[gG]_[xX]_[cC][eE][nN][tT][eE][rR]|[gG]_[yY]_[cC][eE][nN][tT][eE][rR]|[gG]_[pP][iI][tT][cC][hH]|[gG]_[dD][eE][pP][tT][hH]|[bB]_[cC][lL][eE][aA][rR]|[qQ]_[nN][eE][aA][rR][eE][sS][tT]|[qQ]_[lL][iI][nN][eE][aA][rR]|[qQ]_[bB][eE][sS][tT]|[qQ]_[mM][iI][pP][mM][aA][pP]|[cC][hH][aA][rR][sS][eE][tT]_[iI][sS][oO]8859|[cC][hH][aA][rR][sS][eE][tT]_[cC][pP]850|[nN][fF][bB]_[vV][aA][rR][iI][aA][bB][lL][eE][wW][iI][dD][tT][hH]|[nN][fF][bB]_[fF][iI][xX][eE][dD][wW][iI][dD][tT][hH]|[aA][lL][lL]_[tT][eE][xX][tT]|[aA][lL][iI][gG][nN]_[tT][oO][pP]_[lL][eE][fF][tT]|[aA][lL][iI][gG][nN]_[tT][oO][pP]|[aA][lL][iI][gG][nN]_[tT][oO][pP]_[rR][iI][gG][hH][tT]|[aA][lL][iI][gG][nN]_[cC][eE][nN][tT][eE][rR]_[lL][eE][fF][tT]|[aA][lL][iI][gG][nN]_[cC][eE][nN][tT][eE][rR]|[aA][lL][iI][gG][nN]_[cC][eE][nN][tT][eE][rR]_[rR][iI][gG][hH][tT]|[aA][lL][iI][gG][nN]_[bB][oO][tT][tT][oO][mM]_[lL][eE][fF][tT]|[aA][lL][iI][gG][nN]_[bB][oO][tT][tT][oO][mM]|[aA][lL][iI][gG][nN]_[bB][oO][tT][tT][oO][mM]_[rR][iI][gG][hH][tT]|[pP][fF]_[dD][iI][aA][gG]|[pP][fF]_[mM][aA][nN][hH][aA][tT][tT][aA][nN]|[pP][fF]_[eE][uU][cC][lL][iI][dD][eE][aA][nN]|[pP][fF]_[oO][cC][tT][iI][lL][eE]|[pP][fF]_[cC][hH][eE][bB][yY][sS][hH][eE][vV])\\b"
         }
       ]
     },
@@ -184,7 +188,7 @@
       "patterns": [
         {
           "name": "variable.language.process.bennugd2",
-          "match": "\\b(?i:(id|father|son|brother|caller|x|y|z|file|graph|size|size_x|size_y|angle|flags|region|resolution|alpha|color_r|color_g|color_b|clip|center|ctype|cnumber|xgraph|render_file|render_graph|blendmode|custom_blendmode|shader|shader_params|small_block|priority))\\b"
+          "match": "\\b([iI][dD]|[fF][aA][tT][hH][eE][rR]|[sS][oO][nN]|[bB][rR][oO][tT][hH][eE][rR]|[cC][aA][lL][lL][eE][rR]|[xX]|[yY]|[zZ]|[fF][iI][lL][eE]|[gG][rR][aA][pP][hH]|[sS][iI][zZ][eE]|[sS][iI][zZ][eE]_[xX]|[sS][iI][zZ][eE]_[yY]|[aA][nN][gG][lL][eE]|[fF][lL][aA][gG][sS]|[rR][eE][gG][iI][oO][nN]|[rR][eE][sS][oO][lL][uU][tT][iI][oO][nN]|[aA][lL][pP][hH][aA]|[cC][oO][lL][oO][rR]_[rR]|[cC][oO][lL][oO][rR]_[gG]|[cC][oO][lL][oO][rR]_[bB]|[cC][lL][iI][pP]|[cC][eE][nN][tT][eE][rR]|[cC][tT][yY][pP][eE]|[cC][nN][uU][mM][bB][eE][rR]|[xX][gG][rR][aA][pP][hH]|[rR][eE][nN][dD][eE][rR]_[fF][iI][lL][eE]|[rR][eE][nN][dD][eE][rR]_[gG][rR][aA][pP][hH]|[bB][lL][eE][nN][dD][mM][oO][dD][eE]|[cC][uU][sS][tT][oO][mM]_[bB][lL][eE][nN][dD][mM][oO][dD][eE]|[sS][hH][aA][dD][eE][rR]|[sS][hH][aA][dD][eE][rR]_[pP][aA][rR][aA][mM][sS]|[sS][mM][aA][lL][lL]_[bB][lL][oO][cC][kK]|[pP][rR][iI][oO][rR][iI][tT][yY])\\b"
         }
       ]
     },
@@ -192,7 +196,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.bennugd2",
-          "match": "\\b(?i:(write|write_var|write_value|write_move|write_delete|write_in_map|write_get_rgba|write_set_rgba|text_width|text_height|load_fpg|fpg_load|fpg_new|fpg_add|fpg_exists|fpg_unload|fpg_del|load_map|map_load|map_new|map_clear|map_clone|map_name|map_set_name|map_exists|map_unload|map_del|map_save|map_get_pixel|map_put_pixel|map_put|map_block_copy|graphic_set|graphic_info|map_info|map_info_set|point_get|point_set|center_set|point_get_total|box_set|box_get|box_get_by_pos|rgb|rgba|rgb_get|rgba_get|fade|fade_on|fade_off|set_mode|set_fps|window_set_title|window_set_icon|window_move|window_set_pos|window_get_pos|window_get_size|desktop_get_size|window_hide|window_show|window_minimize|window_maximize|window_raise|window_restore|screen_get|advance|xadvance|get_angle|get_dist|get_real_point|collision|scroll_start|scroll_stop|scroll_move|region_define|region_out|load_fnt|fnt_load|fnt_new|fnt_unload|fnt_del|sound_load|sound_play|sound_stop|sound_pause|sound_resume|sound_unload|music_load|music_play|music_stop|music_pause|music_resume|music_unload|key|mouse|joy_get_button|joy_get_position|joy_num|abs|acos|asin|atan|atan2|cos|sin|tan|sqrt|pow|rand|rand_seed|get_timer|sleep_ms|time|say|exit|get_id|signal|exists))\\b"
+          "match": "\\b([wW][rR][iI][tT][eE]|[wW][rR][iI][tT][eE]_[vV][aA][rR]|[wW][rR][iI][tT][eE]_[vV][aA][lL][uU][eE]|[wW][rR][iI][tT][eE]_[mM][oO][vV][eE]|[wW][rR][iI][tT][eE]_[dD][eE][lL][eE][tT][eE]|[wW][rR][iI][tT][eE]_[iI][nN]_[mM][aA][pP]|[wW][rR][iI][tT][eE]_[gG][eE][tT]_[rR][gG][bB][aA]|[wW][rR][iI][tT][eE]_[sS][eE][tT]_[rR][gG][bB][aA]|[tT][eE][xX][tT]_[wW][iI][dD][tT][hH]|[tT][eE][xX][tT]_[hH][eE][iI][gG][hH][tT]|[lL][oO][aA][dD]_[fF][pP][gG]|[fF][pP][gG]_[lL][oO][aA][dD]|[fF][pP][gG]_[nN][eE][wW]|[fF][pP][gG]_[aA][dD][dD]|[fF][pP][gG]_[eE][xX][iI][sS][tT][sS]|[fF][pP][gG]_[uU][nN][lL][oO][aA][dD]|[fF][pP][gG]_[dD][eE][lL]|[lL][oO][aA][dD]_[mM][aA][pP]|[mM][aA][pP]_[lL][oO][aA][dD]|[mM][aA][pP]_[nN][eE][wW]|[mM][aA][pP]_[cC][lL][eE][aA][rR]|[mM][aA][pP]_[cC][lL][oO][nN][eE]|[mM][aA][pP]_[nN][aA][mM][eE]|[mM][aA][pP]_[sS][eE][tT]_[nN][aA][mM][eE]|[mM][aA][pP]_[eE][xX][iI][sS][tT][sS]|[mM][aA][pP]_[uU][nN][lL][oO][aA][dD]|[mM][aA][pP]_[dD][eE][lL]|[mM][aA][pP]_[sS][aA][vV][eE]|[mM][aA][pP]_[gG][eE][tT]_[pP][iI][xX][eE][lL]|[mM][aA][pP]_[pP][uU][tT]_[pP][iI][xX][eE][lL]|[mM][aA][pP]_[pP][uU][tT]|[mM][aA][pP]_[bB][lL][oO][cC][kK]_[cC][oO][pP][yY]|[gG][rR][aA][pP][hH][iI][cC]_[sS][eE][tT]|[gG][rR][aA][pP][hH][iI][cC]_[iI][nN][fF][oO]|[mM][aA][pP]_[iI][nN][fF][oO]|[mM][aA][pP]_[iI][nN][fF][oO]_[sS][eE][tT]|[pP][oO][iI][nN][tT]_[gG][eE][tT]|[pP][oO][iI][nN][tT]_[sS][eE][tT]|[cC][eE][nN][tT][eE][rR]_[sS][eE][tT]|[pP][oO][iI][nN][tT]_[gG][eE][tT]_[tT][oO][tT][aA][lL]|[bB][oO][xX]_[sS][eE][tT]|[bB][oO][xX]_[gG][eE][tT]|[bB][oO][xX]_[gG][eE][tT]_[bB][yY]_[pP][oO][sS]|[rR][gG][bB]|[rR][gG][bB][aA]|[rR][gG][bB]_[gG][eE][tT]|[rR][gG][bB][aA]_[gG][eE][tT]|[fF][aA][dD][eE]|[fF][aA][dD][eE]_[oO][nN]|[fF][aA][dD][eE]_[oO][fF][fF]|[sS][eE][tT]_[mM][oO][dD][eE]|[sS][eE][tT]_[fF][pP][sS]|[wW][iI][nN][dD][oO][wW]_[sS][eE][tT]_[tT][iI][tT][lL][eE]|[wW][iI][nN][dD][oO][wW]_[sS][eE][tT]_[iI][cC][oO][nN]|[wW][iI][nN][dD][oO][wW]_[mM][oO][vV][eE]|[wW][iI][nN][dD][oO][wW]_[sS][eE][tT]_[pP][oO][sS]|[wW][iI][nN][dD][oO][wW]_[gG][eE][tT]_[pP][oO][sS]|[wW][iI][nN][dD][oO][wW]_[gG][eE][tT]_[sS][iI][zZ][eE]|[dD][eE][sS][kK][tT][oO][pP]_[gG][eE][tT]_[sS][iI][zZ][eE]|[wW][iI][nN][dD][oO][wW]_[hH][iI][dD][eE]|[wW][iI][nN][dD][oO][wW]_[sS][hH][oO][wW]|[wW][iI][nN][dD][oO][wW]_[mM][iI][nN][iI][mM][iI][zZ][eE]|[wW][iI][nN][dD][oO][wW]_[mM][aA][xX][iI][mM][iI][zZ][eE]|[wW][iI][nN][dD][oO][wW]_[rR][aA][iI][sS][eE]|[wW][iI][nN][dD][oO][wW]_[rR][eE][sS][tT][oO][rR][eE]|[sS][cC][rR][eE][eE][nN]_[gG][eE][tT]|[aA][dD][vV][aA][nN][cC][eE]|[xX][aA][dD][vV][aA][nN][cC][eE]|[gG][eE][tT]_[aA][nN][gG][lL][eE]|[gG][eE][tT]_[dD][iI][sS][tT]|[gG][eE][tT]_[rR][eE][aA][lL]_[pP][oO][iI][nN][tT]|[cC][oO][lL][lL][iI][sS][iI][oO][nN]|[sS][cC][rR][oO][lL][lL]_[sS][tT][aA][rR][tT]|[sS][cC][rR][oO][lL][lL]_[sS][tT][oO][pP]|[sS][cC][rR][oO][lL][lL]_[mM][oO][vV][eE]|[rR][eE][gG][iI][oO][nN]_[dD][eE][fF][iI][nN][eE]|[rR][eE][gG][iI][oO][nN]_[oO][uU][tT]|[lL][oO][aA][dD]_[fF][nN][tT]|[fF][nN][tT]_[lL][oO][aA][dD]|[fF][nN][tT]_[nN][eE][wW]|[fF][nN][tT]_[uU][nN][lL][oO][aA][dD]|[fF][nN][tT]_[dD][eE][lL]|[sS][oO][uU][nN][dD]_[lL][oO][aA][dD]|[sS][oO][uU][nN][dD]_[pP][lL][aA][yY]|[sS][oO][uU][nN][dD]_[sS][tT][oO][pP]|[sS][oO][uU][nN][dD]_[pP][aA][uU][sS][eE]|[sS][oO][uU][nN][dD]_[rR][eE][sS][uU][mM][eE]|[sS][oO][uU][nN][dD]_[uU][nN][lL][oO][aA][dD]|[mM][uU][sS][iI][cC]_[lL][oO][aA][dD]|[mM][uU][sS][iI][cC]_[pP][lL][aA][yY]|[mM][uU][sS][iI][cC]_[sS][tT][oO][pP]|[mM][uU][sS][iI][cC]_[pP][aA][uU][sS][eE]|[mM][uU][sS][iI][cC]_[rR][eE][sS][uU][mM][eE]|[mM][uU][sS][iI][cC]_[uU][nN][lL][oO][aA][dD]|[kK][eE][yY]|[mM][oO][uU][sS][eE]|[jJ][oO][yY]_[gG][eE][tT]_[bB][uU][tT][tT][oO][nN]|[jJ][oO][yY]_[gG][eE][tT]_[pP][oO][sS][iI][tT][iI][oO][nN]|[jJ][oO][yY]_[nN][uU][mM]|[aA][bB][sS]|[aA][cC][oO][sS]|[aA][sS][iI][nN]|[aA][tT][aA][nN]|[aA][tT][aA][nN]2|[cC][oO][sS]|[sS][iI][nN]|[tT][aA][nN]|[sS][qQ][rR][tT]|[pP][oO][wW]|[rR][aA][nN][dD]|[rR][aA][nN][dD]_[sS][eE][eE][dD]|[gG][eE][tT]_[tT][iI][mM][eE][rR]|[sS][lL][eE][eE][pP]_[mM][sS]|[tT][iI][mM][eE]|[sS][aA][yY]|[eE][xX][iI][tT]|[gG][eE][tT]_[iI][dD]|[sS][iI][gG][nN][aA][lL]|[eE][xX][iI][sS][tT][sS])\\b"
         }
       ]
     },
@@ -200,7 +204,7 @@
       "patterns": [
         {
           "name": "keyword.operator.logical.bennugd2",
-          "match": "\\b(?i:(and|or|xor|not|band|bor|bxor|bnot|sizeof|offset|type))\\b"
+          "match": "\\b([aA][nN][dD]|[oO][rR]|[xX][oO][rR]|[nN][oO][tT]|[bB][aA][nN][dD]|[bB][oO][rR]|[bB][xX][oO][rR]|[bB][nN][oO][tT]|[sS][iI][zZ][eE][oO][fF]|[oO][fF][fF][sS][eE][tT]|[tT][yY][pP][eE])\\b"
         },
         {
           "name": "keyword.operator.symbolic.bennugd2",

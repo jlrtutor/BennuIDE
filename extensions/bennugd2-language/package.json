@@ -3,10 +3,10 @@
   "displayName": "BennuGD2 Language Support & Tools",
   "description": "Official BennuGD2 language support, LSP, interactive debugger, compilation tools, and themes for BennuIDE.",
   "version": "1.0.0",
-  "publisher": "bennuide",
+  "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "*"
   },
   "categories": [
     "Programming Languages",
@@ -29,17 +29,37 @@
         "id": "bennugd2",
         "aliases": [
           "BennuGD2",
+          "BennuGD",
+          "Bennu",
+          "bennugd2",
           "bennugd",
-          "bgd"
+          "bgd",
+          "PRG",
+          "prg"
         ],
         "extensions": [
           ".prg",
           ".inc",
-          ".bgd"
+          ".bgd",
+          ".PRG",
+          ".INC",
+          ".BGD"
         ],
+        "firstLine": "^(?:\\s*(?://|/\\*|#)|\\b(?:[pP][rR][oO][gG][rR][aA][mM]|[pP][rR][oO][cC][eE][sS][sS]|[fF][uU][nN][cC][tT][iI][oO][nN]|[iI][mM][pP][oO][rR][tT]|[iI][nN][cC][lL][uU][dD][eE]|[gG][lL][oO][bB][aA][lL]|[lL][oO][cC][aA][lL]|[pP][rR][iI][vV][aA][tT][eE]|[pP][uU][bB][lL][iI][cC])\\b)",
         "configuration": "./language-configuration.json"
       }
     ],
+    "configurationDefaults": {
+      "workbench.editor.languageDetection": false,
+      "files.associations": {
+        "*.prg": "bennugd2",
+        "*.PRG": "bennugd2",
+        "*.inc": "bennugd2",
+        "*.INC": "bennugd2",
+        "*.bgd": "bennugd2",
+        "*.BGD": "bennugd2"
+      }
+    },
     "grammars": [
       {
         "language": "bennugd2",
@@ -202,7 +222,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node && esbuild src/server/server.ts --bundle --outfile=out/server/server.js --external:vscode --format=cjs --platform=node",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts"
   },

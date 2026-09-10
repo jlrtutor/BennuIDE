@@ -47,8 +47,13 @@ export class FntEditorProvider implements vscode.CustomEditorProvider<FntDocumen
     _openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken
   ): Promise<FntDocument> {
-    const data = await vscode.workspace.fs.readFile(uri);
-    return new FntDocument(uri, data);
+    try {
+      const data = await vscode.workspace.fs.readFile(uri);
+      return new FntDocument(uri, data);
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Error al leer archivo de fuente (${path.basename(uri.fsPath)}): ${err?.message || err}`);
+      return new FntDocument(uri, new Uint8Array(0));
+    }
   }
 
   async resolveCustomEditor(

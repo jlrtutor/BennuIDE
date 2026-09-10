@@ -21,30 +21,54 @@ export interface FpgFile {
 
 export class FpgParser {
   public static parse(buffer: Uint8Array): FpgFile {
+    if (buffer.length === 0) {
+      return {
+        bpp: 32,
+        sprites: []
+      };
+    }
+
     if (buffer.length < 8) {
       throw new Error('Archivo FPG inválido: tamaño insuficiente.');
     }
 
-    // Check Magic: "fpg\x1a\x0d\x0a\x00"
-    const magic = String.fromCharCode(...buffer.subarray(0, 3));
-    if (magic !== 'fpg' && magic !== 'FPG') {
-      throw new Error('Cabecera FPG no válida (no coincide magic "fpg").');
+    // Determine Magic & bpp
+    const magicStr = String.fromCharCode(...buffer.subarray(0, 3)).toLowerCase();
+    let bpp = buffer[7];
+
+    if (magicStr === 'f16' || magicStr === 'm16') {
+      bpp = 16;
+    } else if (magicStr === 'f32' || magicStr === 'm32') {
+      bpp = 32;
+    } else if (magicStr === 'f08' || magicStr === 'm08') {
+      bpp = 8;
+    } else if (magicStr === 'f01' || magicStr === 'm01') {
+      bpp = 1;
+    } else if (magicStr === 'fpg' || magicStr === 'map') {
+      if (bpp === 0) {
+        bpp = 8; // DIV 1 / 2 default 8-bit
+      }
+    } else {
+      // If magic is not strict "fpg", check if bpp byte is 8, 16, or 32
+      if (bpp === 0 || bpp === 8) {
+        bpp = 8;
+      } else if (bpp !== 16 && bpp !== 32) {
+        bpp = 32; // fallback default
+      }
     }
 
-    const bpp = buffer[7];
-    if (bpp !== 8 && bpp !== 16 && bpp !== 32) {
-      throw new Error(`Profundidad de color no soportada en FPG: ${bpp} bpp (soportados: 8, 16, 32).`);
+    if (bpp !== 8 && bpp !== 16 && bpp !== 32 && bpp !== 1) {
+      bpp = 32;
     }
 
     let offset = 8;
     let palette: Uint8Array | undefined = undefined;
 
     if (bpp === 8) {
-      if (buffer.length < offset + 768) {
-        throw new Error('Archivo FPG de 8-bit truncado: falta la paleta de 768 bytes.');
+      if (buffer.length >= offset + 768) {
+        palette = buffer.slice(offset, offset + 768);
+        offset += 768;
       }
-      palette = buffer.slice(offset, offset + 768);
-      offset += 768;
     }
 
     const sprites: FpgSprite[] = [];
@@ -68,7 +92,12 @@ export class FpgParser {
 
       const width = view.getInt32(offset + 52, true);
       const height = view.getInt32(offset + 56, true);
-      const numPoints = view.getInt32(offset + 60, true);
+      const numPointsRaw = view.getInt32(offset + 60, true);
+      const numPoints = Math.max(0, Math.min(1000, numPointsRaw));
+
+      if (width <= 0 || width > 16384 || height <= 0 || height > 16384) {
+        break;
+      }
 
       offset += 64;
 
@@ -81,9 +110,10 @@ export class FpgParser {
         offset += 4;
       }
 
-      const pixelBytesCount = width * height * (bpp / 8);
+      const bytesPerPixel = bpp === 8 ? 1 : bpp === 16 ? 2 : 4;
+      const pixelBytesCount = width * height * bytesPerPixel;
       if (offset + pixelBytesCount > buffer.length) {
-        break; // Truncated or EOF
+        break; // EOF or truncated
       }
 
       const rawPixels = buffer.subarray(offset, offset + pixelBytesCount);
@@ -93,18 +123,30 @@ export class FpgParser {
       const rgbaData = new Uint8Array(width * height * 4);
 
       if (bpp === 8) {
+        // Detect if palette is 0..63 (VGA DAC) or 0..255
+        let isVgaPalette = true;
+        if (palette) {
+          for (let p = 0; p < palette.length; p++) {
+            if (palette[p] > 63) {
+              isVgaPalette = false;
+              break;
+            }
+          }
+        }
+        const shift = isVgaPalette ? 2 : 0;
+
         for (let i = 0; i < width * height; i++) {
           const palIndex = rawPixels[i];
           if (palIndex === 0) {
-            // Transparent color 0
+            // Transparent
             rgbaData[i * 4 + 0] = 0;
             rgbaData[i * 4 + 1] = 0;
             rgbaData[i * 4 + 2] = 0;
             rgbaData[i * 4 + 3] = 0;
           } else {
-            const r = palette ? (palette[palIndex * 3 + 0] << 2) || palette[palIndex * 3 + 0] : 0;
-            const g = palette ? (palette[palIndex * 3 + 1] << 2) || palette[palIndex * 3 + 1] : 0;
-            const b = palette ? (palette[palIndex * 3 + 2] << 2) || palette[palIndex * 3 + 2] : 0;
+            const r = palette ? ((palette[palIndex * 3 + 0] << shift) & 0xFF) : palIndex;
+            const g = palette ? ((palette[palIndex * 3 + 1] << shift) & 0xFF) : palIndex;
+            const b = palette ? ((palette[palIndex * 3 + 2] << shift) & 0xFF) : palIndex;
             rgbaData[i * 4 + 0] = r;
             rgbaData[i * 4 + 1] = g;
             rgbaData[i * 4 + 2] = b;
@@ -129,16 +171,30 @@ export class FpgParser {
           }
         }
       } else if (bpp === 32) {
-        // ARGB or RGBA (BennuGD2 standard is 32-bit ARGB/RGBA)
+        let hasNonZeroAlpha = false;
+        let hasNonZeroRgb = false;
         for (let i = 0; i < width * height; i++) {
           const b = rawPixels[i * 4 + 0];
           const g = rawPixels[i * 4 + 1];
           const r = rawPixels[i * 4 + 2];
           const a = rawPixels[i * 4 + 3];
+          if (a > 0) hasNonZeroAlpha = true;
+          if (r > 0 || g > 0 || b > 0) hasNonZeroRgb = true;
           rgbaData[i * 4 + 0] = r;
           rgbaData[i * 4 + 1] = g;
           rgbaData[i * 4 + 2] = b;
           rgbaData[i * 4 + 3] = a;
+        }
+        // If all pixels had alpha 0 but has colors, treat as opaque (BennuGD legacy 32bit RGB)
+        if (!hasNonZeroAlpha && hasNonZeroRgb) {
+          for (let i = 0; i < width * height; i++) {
+            const r = rgbaData[i * 4 + 0];
+            const g = rgbaData[i * 4 + 1];
+            const b = rgbaData[i * 4 + 2];
+            if (r > 0 || g > 0 || b > 0) {
+              rgbaData[i * 4 + 3] = 255;
+            }
+          }
         }
       }
 
@@ -167,16 +223,20 @@ export class FpgParser {
     }
 
     for (const sprite of fpg.sprites) {
-      totalSize += 64 + (sprite.controlPoints.length * 4) + (sprite.width * sprite.height * (fpg.bpp / 8));
+      totalSize += 64 + (sprite.controlPoints.length * 4) + (sprite.width * sprite.height * (fpg.bpp === 8 ? 1 : fpg.bpp === 16 ? 2 : 4));
     }
 
     const out = new Uint8Array(totalSize);
     const view = new DataView(out.buffer);
 
-    // Magic: "fpg\x1a\x0d\x0a\x00"
-    out[0] = 0x66; // 'f'
-    out[1] = 0x70; // 'p'
-    out[2] = 0x67; // 'g'
+    // Magic: "fpg\x1a\x0d\x0a\x00" or "f16\x1a\x0d\x0a\x00" or "f32\x1a\x0d\x0a\x00"
+    if (fpg.bpp === 16) {
+      out[0] = 0x66; out[1] = 0x31; out[2] = 0x36; // 'f16'
+    } else if (fpg.bpp === 32) {
+      out[0] = 0x66; out[1] = 0x33; out[2] = 0x32; // 'f32'
+    } else {
+      out[0] = 0x66; out[1] = 0x70; out[2] = 0x67; // 'fpg'
+    }
     out[3] = 0x1A;
     out[4] = 0x0D;
     out[5] = 0x0A;
@@ -188,11 +248,20 @@ export class FpgParser {
     if (fpg.bpp === 8 && fpg.palette) {
       out.set(fpg.palette, offset);
       offset += 768;
+    } else if (fpg.bpp === 8) {
+      // Default grayscale palette if none
+      for (let i = 0; i < 256; i++) {
+        out[offset + i * 3 + 0] = i;
+        out[offset + i * 3 + 1] = i;
+        out[offset + i * 3 + 2] = i;
+      }
+      offset += 768;
     }
 
     for (const sprite of fpg.sprites) {
       const spriteHeaderOffset = offset;
-      const pixelBytes = sprite.width * sprite.height * (fpg.bpp / 8);
+      const bytesPerPixel = fpg.bpp === 8 ? 1 : fpg.bpp === 16 ? 2 : 4;
+      const pixelBytes = sprite.width * sprite.height * bytesPerPixel;
       const chunkSize = 64 + (sprite.controlPoints.length * 4) + pixelBytes;
 
       view.setInt32(spriteHeaderOffset, sprite.code, true);
@@ -250,10 +319,9 @@ export class FpgParser {
         }
         offset += pixelBytes;
       } else if (fpg.bpp === 8) {
-        // Map RGBA back to 8bpp indices
         for (let i = 0; i < sprite.width * sprite.height; i++) {
           const a = sprite.rgbaData[i * 4 + 3];
-          out[offset + i] = a === 0 ? 0 : 1; // Basic mapping or closest palette color
+          out[offset + i] = a === 0 ? 0 : 1;
         }
         offset += pixelBytes;
       }

@@ -44,8 +44,13 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken
   ): Promise<FpgDocument> {
-    const data = await vscode.workspace.fs.readFile(uri);
-    return new FpgDocument(uri, data);
+    try {
+      const data = await vscode.workspace.fs.readFile(uri);
+      return new FpgDocument(uri, data);
+    } catch (err: any) {
+      vscode.window.showErrorMessage(`Error al leer archivo FPG (${path.basename(uri.fsPath)}): ${err?.message || err}`);
+      return new FpgDocument(uri, new Uint8Array(0));
+    }
   }
 
   async resolveCustomEditor(
