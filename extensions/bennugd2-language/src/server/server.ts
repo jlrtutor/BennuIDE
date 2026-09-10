@@ -732,13 +732,34 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 // Document Links for include "..." and import "..."
 connection.onDocumentLink((params: DocumentLinkParams): DocumentLink[] => {
-  const doc = getOrLoadParsedDocument(params.textDocument.uri);
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
   if (!doc) return [];
 
+  if (uri.startsWith('file://')) {
+    discoverProjectRoot(fileURLToPath(uri));
+  }
+
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
   const links: DocumentLink[] = [];
-  for (const inc of doc.includes) {
-    if (inc.resolvedUri) {
-      links.push(DocumentLink.create(inc.selectionRange, inc.resolvedUri));
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const incMatch = line.match(/^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i);
+    if (incMatch) {
+      const incPath = incMatch[1];
+      const startCol = line.indexOf(incPath);
+      const endCol = startCol + incPath.length;
+      const targetUri = resolveIncludePath(uri, incPath);
+      if (targetUri) {
+        links.push(
+          DocumentLink.create(
+            Range.create(Position.create(i, Math.max(0, startCol)), Position.create(i, Math.max(0, endCol))),
+            targetUri
+          )
+        );
+      }
     }
   }
   return links;
@@ -839,26 +860,22 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
 
   const position = params.position;
   const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
   const offset = doc.offsetAt(position);
-  const parsedDoc = getOrLoadParsedDocument(uri);
 
-  // Check if hovering over an include path
-  if (parsedDoc) {
-    for (const inc of parsedDoc.includes) {
-      if (
-        position.line === inc.range.start.line &&
-        position.character >= inc.range.start.character &&
-        position.character <= inc.range.end.character
-      ) {
-        const fileTarget = inc.resolvedUri ? fileURLToPath(inc.resolvedUri) : 'Archivo no encontrado';
-        return {
-          contents: {
-            kind: MarkupKind.Markdown,
-            value: `### 📁 Include / Import\n\`${inc.rawPath}\`\n\n**Ruta resuelta:** \`${fileTarget}\``
-          }
-        };
+  // Check if hovering over an include statement or quoted file path
+  const incMatch = currentLine.match(/^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i);
+  if (incMatch) {
+    const incPath = incMatch[1];
+    const resolvedUri = resolveIncludePath(uri, incPath);
+    const fileTarget = resolvedUri ? fileURLToPath(resolvedUri) : 'Archivo no encontrado';
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: `### 📁 Include / Import\n\`${incPath}\`\n\n**Ruta resuelta:** \`${fileTarget}\``
       }
-    }
+    };
   }
 
   // Extract word under cursor
@@ -947,23 +964,37 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
 
   const position = params.position;
   const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
   const offset = doc.offsetAt(position);
-  const parsedDoc = getOrLoadParsedDocument(uri);
 
-  // 1. Check if clicking on an Include / Import statement
-  if (parsedDoc) {
-    for (const inc of parsedDoc.includes) {
-      if (
-        position.line === inc.range.start.line &&
-        position.character >= inc.range.start.character &&
-        position.character <= inc.range.end.character
-      ) {
-        if (inc.resolvedUri) {
-          return Location.create(
-            inc.resolvedUri,
-            Range.create(Position.create(0, 0), Position.create(0, 0))
-          );
-        }
+  // 1. Direct check: Is current line an include / import?
+  const incMatch = currentLine.match(/^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i);
+  if (incMatch) {
+    const incPath = incMatch[1];
+    const resolvedUri = resolveIncludePath(uri, incPath);
+    if (resolvedUri) {
+      return Location.create(
+        resolvedUri,
+        Range.create(Position.create(0, 0), Position.create(0, 0))
+      );
+    }
+  }
+
+  // 1b. Check if cursor is inside a quoted string referencing a file
+  const quoteRegex = /"([^"]+)"|'([^']+)'/g;
+  let qMatch: RegExpExecArray | null;
+  while ((qMatch = quoteRegex.exec(currentLine)) !== null) {
+    const qStr = qMatch[1] || qMatch[2];
+    const qStart = qMatch.index;
+    const qEnd = qMatch.index + qMatch[0].length;
+    if (position.character >= qStart && position.character <= qEnd) {
+      const resolved = resolveIncludePath(uri, qStr);
+      if (resolved) {
+        return Location.create(
+          resolved,
+          Range.create(Position.create(0, 0), Position.create(0, 0))
+        );
       }
     }
   }
@@ -978,6 +1009,7 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
   if (!word) return null;
   const wordLower = word.toLowerCase();
 
+  const parsedDoc = getOrLoadParsedDocument(uri);
   const candidates: SymbolDef[] = [];
 
   // 3. Search in current document

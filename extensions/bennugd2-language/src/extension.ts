@@ -8,25 +8,28 @@ import {
 } from 'vscode-languageclient/node';
 import { BennuCompiler } from './compiler/compiler';
 import { BennuDebugSession } from './debugger/debugAdapter';
+import { BennuDefinitionProvider, BennuDocumentLinkProvider } from './navigation/definitionProvider';
 
 let client: LanguageClient;
 let compiler: BennuCompiler;
 
 export function activate(context: vscode.ExtensionContext) {
-  // 0. Auto-enforce BennuGD2 language mode on .prg / .inc / .bgd files
+  // 0. Auto-enforce BennuGD2 language mode on .prg / .inc / .bgd / .h files
   const enforceBennuLanguage = (doc: vscode.TextDocument) => {
     if (!doc || !doc.fileName) return;
     const ext = path.extname(doc.fileName).toLowerCase();
-    if (['.prg', '.inc', '.bgd'].includes(ext) && doc.languageId !== 'bennugd2') {
+    if (['.prg', '.inc', '.bgd', '.h'].includes(ext) && doc.languageId !== 'bennugd2') {
       vscode.languages.setTextDocumentLanguage(doc, 'bennugd2');
     }
   };
 
   vscode.workspace.textDocuments.forEach(enforceBennuLanguage);
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(enforceBennuLanguage));
-  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
-    if (editor?.document) enforceBennuLanguage(editor.document);
-  }));
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (editor?.document) enforceBennuLanguage(editor.document);
+    })
+  );
 
   const outputChannel = vscode.window.createOutputChannel('BennuGD2');
   const diagnosticCollection = vscode.languages.createDiagnosticCollection('bennugd2');
@@ -34,7 +37,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(outputChannel, diagnosticCollection);
 
-  // 1. Language Server Setup
+  // 1. Native Definition & DocumentLink Providers
+  const bennuSelector: vscode.DocumentSelector = [
+    { scheme: 'file', language: 'bennugd2' },
+    { scheme: 'file', pattern: '**/*.{prg,inc,bgd,h,PRG,INC,BGD,H}' }
+  ];
+
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(bennuSelector, new BennuDefinitionProvider()),
+    vscode.languages.registerDocumentLinkProvider(bennuSelector, new BennuDocumentLinkProvider())
+  );
+
+  // 2. Language Server Setup
   const serverModule = context.asAbsolutePath(path.join('out', 'server', 'server.js'));
   const debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
 
@@ -48,25 +62,20 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: 'file', language: 'bennugd2' }],
+    documentSelector: bennuSelector,
     synchronize: {
       fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{prg,inc,bgd,h,PRG,INC,BGD,H}')
     }
   };
 
-  client = new LanguageClient(
-    'bennugd2Lsp',
-    'BennuGD2 Language Server',
-    serverOptions,
-    clientOptions
-  );
+  client = new LanguageClient('bennugd2Lsp', 'BennuGD2 Language Server', serverOptions, clientOptions);
 
   client.start();
 
-  // 2. Status Bar Buttons
+  // 3. Status Bar Buttons
   createStatusBarButtons(context);
 
-  // 3. Register Commands
+  // 4. Register Commands
   context.subscriptions.push(
     vscode.commands.registerCommand('bennugd2.compile', async () => {
       const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
@@ -100,14 +109,13 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // 4. Register Debugger Provider
+  // 5. Register Debugger Provider
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('bennugd2', new BennuDebugAdapterDescriptorFactory())
   );
 }
 
 function createStatusBarButtons(context: vscode.ExtensionContext) {
-  // Compile & Run Button
   const compileRunBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   compileRunBtn.text = '$(run-all) BennuGD2 Run';
   compileRunBtn.tooltip = 'Compilar y ejecutar juego BennuGD2';
@@ -115,7 +123,6 @@ function createStatusBarButtons(context: vscode.ExtensionContext) {
   compileRunBtn.show();
   context.subscriptions.push(compileRunBtn);
 
-  // Compile Only Button
   const compileBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
   compileBtn.text = '$(gear) Compile';
   compileBtn.tooltip = 'Compilar proyecto BennuGD2 con bgdc';
@@ -125,9 +132,7 @@ function createStatusBarButtons(context: vscode.ExtensionContext) {
 }
 
 class BennuDebugAdapterDescriptorFactory implements vscode.DebugAdapterDescriptorFactory {
-  createDebugAdapterDescriptor(
-    _session: vscode.DebugSession
-  ): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+  createDebugAdapterDescriptor(_session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
     return new vscode.DebugAdapterInlineImplementation(new BennuDebugSession());
   }
 }
