@@ -3,7 +3,6 @@ import {
   TextDocuments,
   ProposedFeatures,
   InitializeParams,
-  DidChangeConfigurationNotification,
   CompletionItem,
   CompletionItemKind,
   TextDocumentPositionParams,
@@ -22,17 +21,22 @@ import {
   ParameterInformation,
   Diagnostic,
   DiagnosticSeverity,
-  TextEdit
+  TextEdit,
+  DocumentLink,
+  DocumentLinkParams,
+  WorkspaceFolder
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 // Create LSP Connection
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
-let hasConfigurationCapability = false;
-let hasWorkspaceFolderCapability = false;
+let workspaceFolders: string[] = [];
 
 // BennuGD2 Builtin Functions Database
 interface BGDDoc {
@@ -168,6 +172,18 @@ const BUILTIN_FUNCTIONS: Record<string, BGDDoc> = {
     doc: 'Reproduce un efecto de sonido cargado previamente.',
     params: ['soundId: ID devuelto por sound_load', 'volume: Volumen (0-128)', 'loops: Número de repeticiones (0 = una vez, -1 = bucle infinito)'],
     returnType: 'int (Channel ID)'
+  },
+  let_me_alone: {
+    signature: 'let_me_alone()',
+    doc: 'Mata a todos los procesos excepto al proceso actual que ejecuta la función.',
+    params: [],
+    returnType: 'int'
+  },
+  exit: {
+    signature: 'exit()',
+    doc: 'Termina inmediatamente la ejecución del juego BennuGD2.',
+    params: [],
+    returnType: 'void'
   }
 };
 
@@ -209,75 +225,434 @@ const CONSTANTS: Record<string, string> = {
   B_CLEAR: 'Borrado automático del fondo de pantalla en cada frame.'
 };
 
-interface SymbolDef {
+// Types and data structures for symbols and includes
+export interface SymbolDef {
   name: string;
   kind: SymbolKind;
-  line: number;
-  character: number;
+  uri: string;
+  range: Range;
+  selectionRange: Range;
   containerName?: string;
   signature?: string;
   doc?: string;
+  type?: string;
 }
 
-function parseDocumentSymbols(doc: TextDocument): SymbolDef[] {
-  const text = doc.getText();
+export interface IncludeRef {
+  rawPath: string;
+  range: Range;
+  selectionRange: Range;
+  resolvedUri?: string;
+}
+
+export interface ParsedDocument {
+  uri: string;
+  symbols: SymbolDef[];
+  includes: IncludeRef[];
+  mtime: number;
+}
+
+// In-memory cache for parsed documents (both open and disk-read)
+const parsedDocsCache = new Map<string, ParsedDocument>();
+
+/**
+ * Resolve include path to a file URI if it exists on disk.
+ */
+function resolveIncludePath(fromUri: string, includePath: string): string | undefined {
+  try {
+    let fromDir = '';
+    if (fromUri.startsWith('file://')) {
+      fromDir = path.dirname(fileURLToPath(fromUri));
+    }
+
+    const candidateBases: string[] = [];
+    if (fromDir) {
+      candidateBases.push(fromDir);
+    }
+    for (const ws of workspaceFolders) {
+      candidateBases.push(ws);
+      candidateBases.push(path.join(ws, 'src'));
+      candidateBases.push(path.join(ws, 'include'));
+      candidateBases.push(path.join(ws, 'includes'));
+    }
+
+    const extensions = ['', '.inc', '.prg', '.bgd', '.INC', '.PRG', '.BGD'];
+
+    for (const base of candidateBases) {
+      for (const ext of extensions) {
+        const fullPath = path.resolve(base, includePath + (includePath.includes('.') && ext === '' ? '' : ext));
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          return pathToFileURL(fullPath).toString();
+        }
+      }
+    }
+  } catch {
+    // Ignore resolution errors
+  }
+  return undefined;
+}
+
+/**
+ * Parse full BennuGD symbols and includes from document text.
+ */
+export function parseDocumentFull(uri: string, text: string, mtime: number = Date.now()): ParsedDocument {
   const lines = text.split(/\r?\n/);
   const symbols: SymbolDef[] = [];
+  const includes: IncludeRef[] = [];
 
-  const processRegex = /^\s*(process|function)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(.*?\))?/i;
-  const structRegex = /^\s*struct\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
-  const varBlockRegex = /^\s*(global|local|private|public|const)\b/i;
+  const includeRegex = /^\s*(?:include|import)\s*["']([^"']+)["']/i;
+  const programRegex = /^\s*program\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
+  const procRegex = /^\s*(process|function|method)\s+(?:(?:int|string|float|byte|word|dword|char|short|long|pointer|[a-zA-Z_][a-zA-Z0-9_]*)\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(.*?\))?/i;
+  const structRegex = /^\s*(type|struct)\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
+  const blockStartRegex = /^\s*(global|local|private|public|const)\b/i;
 
-  let currentBlock: string | undefined = undefined;
+  let currentContainer: string | undefined = undefined;
+  let currentBlockType: 'global' | 'local' | 'private' | 'public' | 'const' | undefined = undefined;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const rawLine = lines[i];
+    // Remove comments for statement parsing, keeping position index
+    const commentIdx = rawLine.indexOf('//');
+    const line = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
+    const trimmed = line.trim();
 
-    const procMatch = line.match(processRegex);
-    if (procMatch) {
-      const kind = procMatch[1].toLowerCase() === 'process' ? SymbolKind.Class : SymbolKind.Function;
-      symbols.push({
-        name: procMatch[2],
-        kind: kind,
-        line: i,
-        character: line.indexOf(procMatch[2]),
-        signature: `${procMatch[1]} ${procMatch[2]}${procMatch[3] || '()'}`,
-        doc: `Definición de ${procMatch[1]} '${procMatch[2]}'`
+    if (!trimmed) continue;
+
+    // 1. Check Include / Import
+    const incMatch = line.match(includeRegex);
+    if (incMatch) {
+      const incPath = incMatch[1];
+      const startCol = rawLine.indexOf(incPath);
+      const endCol = startCol + incPath.length;
+      const range = Range.create(Position.create(i, 0), Position.create(i, rawLine.length));
+      const selectionRange = Range.create(Position.create(i, Math.max(0, startCol)), Position.create(i, Math.max(0, endCol)));
+      const resolvedUri = resolveIncludePath(uri, incPath);
+
+      includes.push({
+        rawPath: incPath,
+        range,
+        selectionRange,
+        resolvedUri
       });
       continue;
     }
 
-    const structMatch = line.match(structRegex);
-    if (structMatch) {
+    // 2. Program declaration
+    const progMatch = line.match(programRegex);
+    if (progMatch) {
+      const name = progMatch[1];
+      const startCol = line.indexOf(name);
+      currentContainer = name;
       symbols.push({
-        name: structMatch[1],
-        kind: SymbolKind.Struct,
-        line: i,
-        character: line.indexOf(structMatch[1]),
-        doc: `Estructura '${structMatch[1]}'`
+        name,
+        kind: SymbolKind.Package,
+        uri,
+        range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
+        selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + name.length)),
+        signature: `program ${name}`,
+        doc: `Programa principal: ${name}`
       });
       continue;
+    }
+
+    // 3. Process / Function / Method declaration
+    const procMatch = line.match(procRegex);
+    if (procMatch) {
+      const kindKeyword = procMatch[1].toLowerCase();
+      const name = procMatch[2];
+      const params = procMatch[3] || '()';
+      const kind = kindKeyword === 'process' ? SymbolKind.Class : SymbolKind.Function;
+      const startCol = line.indexOf(name);
+      currentContainer = name;
+
+      symbols.push({
+        name,
+        kind,
+        uri,
+        range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
+        selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + name.length)),
+        signature: `${procMatch[1]} ${name}${params}`,
+        doc: `Definición de ${procMatch[1]} '${name}'`
+      });
+
+      // Parse parameters as local variables of this process/function
+      if (procMatch[3]) {
+        const paramStr = procMatch[3].replace(/^\(|\)$/g, '');
+        const paramParts = paramStr.split(',');
+        for (const p of paramParts) {
+          const pTrim = p.trim();
+          if (pTrim) {
+            const pMatch = pTrim.match(/(?:[a-zA-Z0-9_*]+\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/);
+            if (pMatch) {
+              const pName = pMatch[1];
+              const pStart = rawLine.indexOf(pName, startCol);
+              if (pStart >= 0) {
+                symbols.push({
+                  name: pName,
+                  kind: SymbolKind.Variable,
+                  uri,
+                  containerName: currentContainer,
+                  range: Range.create(Position.create(i, pStart), Position.create(i, pStart + pName.length)),
+                  selectionRange: Range.create(Position.create(i, pStart), Position.create(i, pStart + pName.length)),
+                  signature: `(Parámetro) ${pTrim}`,
+                  doc: `Parámetro '${pName}' de ${name}`
+                });
+              }
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    // 4. Struct / Type declaration
+    const structMatch = line.match(structRegex);
+    if (structMatch) {
+      const structName = structMatch[2];
+      const startCol = line.indexOf(structName);
+      symbols.push({
+        name: structName,
+        kind: SymbolKind.Struct,
+        uri,
+        containerName: currentContainer,
+        range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
+        selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + structName.length)),
+        signature: `${structMatch[1]} ${structName}`,
+        doc: `Estructura o tipo de datos '${structName}'`
+      });
+      continue;
+    }
+
+    // 5. Block headers (global, local, private, public, const)
+    const blockMatch = line.match(blockStartRegex);
+    if (blockMatch) {
+      currentBlockType = blockMatch[1].toLowerCase() as any;
+      // Check if it's an inline single declaration like: global int foo = 1; or const PI = 3.14;
+      const rest = line.substring(line.indexOf(blockMatch[1]) + blockMatch[1].length).trim();
+      if (rest.length > 0 && !rest.startsWith('//')) {
+        parseBlockLine(rest, i, rawLine, currentBlockType, currentContainer, uri, symbols);
+        currentBlockType = undefined;
+      }
+      continue;
+    }
+
+    // 6. Block closure or statement transitions
+    if (/^\s*(end|begin)\b/i.test(trimmed)) {
+      if (currentBlockType) {
+        currentBlockType = undefined;
+      }
+      if (/^\s*end\b/i.test(trimmed) && !currentBlockType) {
+        // May close process / function / struct
+      }
+      continue;
+    }
+
+    // 7. Parse lines inside variable or constant blocks
+    if (currentBlockType) {
+      parseBlockLine(trimmed, i, rawLine, currentBlockType, currentContainer, uri, symbols);
     }
   }
 
-  return symbols;
+  const result: ParsedDocument = { uri, symbols, includes, mtime };
+  parsedDocsCache.set(uri, result);
+  return result;
 }
 
-connection.onInitialize((params: InitializeParams) => {
-  const capabilities = params.capabilities;
-  hasConfigurationCapability = !!(capabilities.workspace && !!capabilities.workspace.configuration);
-  hasWorkspaceFolderCapability = !!(capabilities.workspace && !!capabilities.workspace.workspaceFolders);
+/**
+ * Parse variable or constant declarations in a block line.
+ */
+function parseBlockLine(
+  line: string,
+  lineNum: number,
+  rawLine: string,
+  blockType: 'global' | 'local' | 'private' | 'public' | 'const',
+  containerName: string | undefined,
+  uri: string,
+  symbols: SymbolDef[]
+): void {
+  // Strip trailing semicolon
+  let cleanLine = line.replace(/;+$/, '').trim();
+  if (!cleanLine) return;
+
+  if (blockType === 'const') {
+    // Examples: CONST_NAME = 10, int CONST_NAME = 10, MSG = "Hello"
+    const constMatch = cleanLine.match(/^(?:[a-zA-Z0-9_*]+\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$/);
+    if (constMatch) {
+      const name = constMatch[1];
+      const val = constMatch[2];
+      const startCol = rawLine.indexOf(name);
+      if (startCol >= 0) {
+        symbols.push({
+          name,
+          kind: SymbolKind.Constant,
+          uri,
+          containerName,
+          range: Range.create(Position.create(lineNum, 0), Position.create(lineNum, rawLine.length)),
+          selectionRange: Range.create(Position.create(lineNum, startCol), Position.create(lineNum, startCol + name.length)),
+          signature: `const ${name} = ${val}`,
+          doc: `Constante: ${name} = ${val}`
+        });
+      }
+    }
+  } else {
+    // Variable block (global, local, private, public)
+    // Examples:
+    // int score = 0, high_score = 1000
+    // string name
+    // Actor player
+    // speed = 5
+    let varType = 'int';
+    let declBody = cleanLine;
+
+    // Detect optional leading type: int, string, float, byte, word, dword, char, short, long, pointer, struct, or CustomType
+    const typeMatch = cleanLine.match(/^([a-zA-Z_][a-zA-Z0-9_*]*)\s+([a-zA-Z_].*)$/);
+    if (typeMatch && !typeMatch[1].includes('=')) {
+      varType = typeMatch[1];
+      declBody = typeMatch[2];
+    }
+
+    // Split multiple declarations: a = 1, b = 2, c
+    const vars = declBody.split(',');
+    for (const v of vars) {
+      const vMatch = v.trim().match(/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*=\s*(.*))?$/);
+      if (vMatch) {
+        const vName = vMatch[1];
+        const initialVal = vMatch[2];
+        const startCol = rawLine.indexOf(vName);
+        if (startCol >= 0) {
+          const kind = blockType === 'global' ? SymbolKind.Variable : SymbolKind.Field;
+          symbols.push({
+            name: vName,
+            kind,
+            uri,
+            type: varType,
+            containerName,
+            range: Range.create(Position.create(lineNum, 0), Position.create(lineNum, rawLine.length)),
+            selectionRange: Range.create(Position.create(lineNum, startCol), Position.create(lineNum, startCol + vName.length)),
+            signature: `${blockType} ${varType} ${vName}${initialVal ? ' = ' + initialVal : ''}`,
+            doc: `Variable (${blockType}) \`${varType} ${vName}\`${containerName ? ` en ${containerName}` : ''}`
+          });
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Get or load parsed document (from memory cache, open LSP documents, or disk).
+ */
+function getOrLoadParsedDocument(uri: string): ParsedDocument | null {
+  const openDoc = documents.get(uri);
+  if (openDoc) {
+    const cached = parsedDocsCache.get(uri);
+    if (cached) return cached;
+    return parseDocumentFull(uri, openDoc.getText());
+  }
+
+  // Load from disk if file URI
+  if (uri.startsWith('file://')) {
+    try {
+      const filePath = fileURLToPath(uri);
+      if (fs.existsSync(filePath)) {
+        const stat = fs.statSync(filePath);
+        const cached = parsedDocsCache.get(uri);
+        if (cached && cached.mtime >= stat.mtimeMs) {
+          return cached;
+        }
+        if (stat.size < 2 * 1024 * 1024) {
+          const text = fs.readFileSync(filePath, 'utf-8');
+          return parseDocumentFull(uri, text, stat.mtimeMs);
+        }
+      }
+    } catch {
+      // Disk load failure ignored
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Recursively collect all symbols from a document and its included files.
+ */
+function getAllSymbolsForDocument(rootUri: string, visited: Set<string> = new Set()): SymbolDef[] {
+  if (visited.has(rootUri)) return [];
+  visited.add(rootUri);
+
+  const doc = getOrLoadParsedDocument(rootUri);
+  if (!doc) return [];
+
+  let result: SymbolDef[] = [...doc.symbols];
+
+  for (const inc of doc.includes) {
+    if (inc.resolvedUri && !visited.has(inc.resolvedUri)) {
+      result = result.concat(getAllSymbolsForDocument(inc.resolvedUri, visited));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Scan workspace files to ensure cross-project index is populated.
+ */
+function scanWorkspace(): void {
+  for (const root of workspaceFolders) {
+    scanDirectory(root, 0, 5);
+  }
+}
+
+function scanDirectory(dir: string, depth: number, maxDepth: number): void {
+  if (depth > maxDepth) return;
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const ent of entries) {
+      if (ent.name.startsWith('.') || ent.name === 'node_modules' || ent.name === 'dist' || ent.name === 'out') {
+        continue;
+      }
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        scanDirectory(full, depth + 1, maxDepth);
+      } else if (ent.isFile()) {
+        const ext = path.extname(ent.name).toLowerCase();
+        if (['.prg', '.inc', '.bgd'].includes(ext)) {
+          const fileUri = pathToFileURL(full).toString();
+          getOrLoadParsedDocument(fileUri);
+        }
+      }
+    }
+  } catch {
+    // Ignore read errors
+  }
+}
+
+connection.onInitialize((params: InitializeParams): InitializeResult => {
+  if (params.workspaceFolders && params.workspaceFolders.length > 0) {
+    workspaceFolders = params.workspaceFolders
+      .map(wf => (wf.uri.startsWith('file://') ? fileURLToPath(wf.uri) : wf.uri))
+      .filter(p => !!p);
+  } else if (params.rootUri && params.rootUri.startsWith('file://')) {
+    workspaceFolders = [fileURLToPath(params.rootUri)];
+  } else if (params.rootPath) {
+    workspaceFolders = [params.rootPath];
+  }
+
+  // Scan workspace files in background
+  setTimeout(() => scanWorkspace(), 500);
 
   const result: InitializeResult = {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
       completionProvider: {
         resolveProvider: true,
-        triggerCharacters: ['.', '(', '&']
+        triggerCharacters: ['.', '(', '&', '"', "'", '/']
       },
       hoverProvider: true,
       definitionProvider: true,
       documentSymbolProvider: true,
+      documentLinkProvider: {
+        resolveProvider: false
+      },
       signatureHelpProvider: {
         triggerCharacters: ['(', ',']
       },
@@ -288,14 +663,37 @@ connection.onInitialize((params: InitializeParams) => {
   return result;
 });
 
+// Document links for include "..." and import "..."
+connection.onDocumentLink((params: DocumentLinkParams): DocumentLink[] => {
+  const doc = getOrLoadParsedDocument(params.textDocument.uri);
+  if (!doc) return [];
+
+  const links: DocumentLink[] = [];
+  for (const inc of doc.includes) {
+    if (inc.resolvedUri) {
+      links.push(DocumentLink.create(inc.selectionRange, inc.resolvedUri));
+    }
+  }
+  return links;
+});
+
 // Autocompletion
 connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-  const doc = documents.get(textDocumentPosition.textDocument.uri);
+  const uri = textDocumentPosition.textDocument.uri;
+  const doc = getOrLoadParsedDocument(uri);
   const items: CompletionItem[] = [];
+  const seenLabels = new Set<string>();
+
+  const addItem = (item: CompletionItem) => {
+    if (!seenLabels.has(item.label.toLowerCase())) {
+      seenLabels.add(item.label.toLowerCase());
+      items.push(item);
+    }
+  };
 
   // 1. Builtin functions
   for (const [name, info] of Object.entries(BUILTIN_FUNCTIONS)) {
-    items.push({
+    addItem({
       label: name,
       kind: CompletionItemKind.Function,
       detail: info.signature,
@@ -309,7 +707,7 @@ connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Comp
 
   // 2. Process variables
   for (const [name, docStr] of Object.entries(PROCESS_VARIABLES)) {
-    items.push({
+    addItem({
       label: name,
       kind: CompletionItemKind.Property,
       detail: `(Process Variable) ${name}`,
@@ -317,9 +715,9 @@ connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Comp
     });
   }
 
-  // 3. Constants
+  // 3. Builtin Constants
   for (const [name, docStr] of Object.entries(CONSTANTS)) {
-    items.push({
+    addItem({
       label: name,
       kind: CompletionItemKind.Constant,
       detail: `(Constant) ${name}`,
@@ -327,30 +725,34 @@ connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Comp
     });
   }
 
-  // 4. User symbols in the current document
-  if (doc) {
-    const userSymbols = parseDocumentSymbols(doc);
-    for (const sym of userSymbols) {
-      items.push({
-        label: sym.name,
-        kind: sym.kind === SymbolKind.Class ? CompletionItemKind.Class : CompletionItemKind.Function,
-        detail: sym.signature || sym.name,
-        documentation: sym.doc
-      });
-    }
+  // 4. User symbols from document and all resolved includes
+  const allSymbols = getAllSymbolsForDocument(uri);
+  for (const sym of allSymbols) {
+    let kind = CompletionItemKind.Variable;
+    if (sym.kind === SymbolKind.Class) kind = CompletionItemKind.Class;
+    else if (sym.kind === SymbolKind.Function) kind = CompletionItemKind.Function;
+    else if (sym.kind === SymbolKind.Constant) kind = CompletionItemKind.Constant;
+    else if (sym.kind === SymbolKind.Struct) kind = CompletionItemKind.Struct;
+
+    addItem({
+      label: sym.name,
+      kind,
+      detail: sym.signature || sym.name,
+      documentation: sym.doc
+    });
   }
 
   // 5. Keywords
   const keywords = [
-    'program', 'process', 'function', 'begin', 'end', 'global', 'local', 'private', 'public',
+    'program', 'process', 'function', 'method', 'begin', 'end', 'global', 'local', 'private', 'public',
     'const', 'type', 'struct', 'if', 'else', 'elseif', 'switch', 'case', 'default',
     'while', 'loop', 'repeat', 'until', 'for', 'from', 'to', 'step', 'break', 'continue',
     'return', 'frame', 'signal', 'clone', 'import', 'include', 'declare', 'int', 'string',
-    'float', 'byte', 'word', 'dword', 'char'
+    'float', 'byte', 'word', 'dword', 'char', 'short', 'long', 'pointer'
   ];
 
   for (const kw of keywords) {
-    items.push({
+    addItem({
       label: kw,
       kind: CompletionItemKind.Keyword
     });
@@ -365,29 +767,47 @@ connection.onCompletionResolve((item: CompletionItem): CompletionItem => {
 
 // Hover Information
 connection.onHover((params: TextDocumentPositionParams): Hover | null => {
-  const doc = documents.get(params.textDocument.uri);
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
   if (!doc) return null;
 
   const position = params.position;
   const text = doc.getText();
   const offset = doc.offsetAt(position);
+  const parsedDoc = getOrLoadParsedDocument(uri);
+
+  // Check if hovering over an include path
+  if (parsedDoc) {
+    for (const inc of parsedDoc.includes) {
+      if (
+        position.line === inc.range.start.line &&
+        position.character >= inc.range.start.character &&
+        position.character <= inc.range.end.character
+      ) {
+        const fileTarget = inc.resolvedUri ? fileURLToPath(inc.resolvedUri) : 'Archivo no encontrado';
+        return {
+          contents: {
+            kind: MarkupKind.Markdown,
+            value: `### 📁 Include / Import\n\`${inc.rawPath}\`\n\n**Ruta resuelta:** \`${fileTarget}\``
+          }
+        };
+      }
+    }
+  }
 
   // Extract word under cursor
   let start = offset;
-  while (start > 0 && /[a-zA-Z0-9_]/.test(text[start - 1])) {
-    start--;
-  }
+  while (start > 0 && /[a-zA-Z0-9_]/.test(text[start - 1])) start--;
   let end = offset;
-  while (end < text.length && /[a-zA-Z0-9_]/.test(text[end])) {
-    end++;
-  }
+  while (end < text.length && /[a-zA-Z0-9_]/.test(text[end])) end++;
 
-  const word = text.substring(start, end).toLowerCase();
+  const word = text.substring(start, end);
   if (!word) return null;
+  const wordLower = word.toLowerCase();
 
   // Check Builtin Functions
-  if (BUILTIN_FUNCTIONS[word]) {
-    const fn = BUILTIN_FUNCTIONS[word];
+  if (BUILTIN_FUNCTIONS[wordLower]) {
+    const fn = BUILTIN_FUNCTIONS[wordLower];
     return {
       contents: {
         kind: MarkupKind.Markdown,
@@ -397,11 +817,11 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
   }
 
   // Check Process Variables
-  if (PROCESS_VARIABLES[word]) {
+  if (PROCESS_VARIABLES[wordLower]) {
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: `### 📌 Variable de Proceso: \`${word}\`\n\n${PROCESS_VARIABLES[word]}`
+        value: `### 📌 Variable de Proceso: \`${wordLower}\`\n\n${PROCESS_VARIABLES[wordLower]}`
       }
     };
   }
@@ -417,14 +837,15 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
     };
   }
 
-  // Check User Defined Symbols
-  const symbols = parseDocumentSymbols(doc);
-  const found = symbols.find(s => s.name.toLowerCase() === word);
+  // Check User Defined Symbols across Document and Includes
+  const allSymbols = getAllSymbolsForDocument(uri);
+  const found = allSymbols.find(s => s.name.toLowerCase() === wordLower);
   if (found) {
+    const fromOtherFile = found.uri !== uri ? `\n\n*Definido en: \`${path.basename(fileURLToPath(found.uri))}\`*` : '';
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: `### 🧩 \`${found.signature || found.name}\`\n\n${found.doc || ''}`
+        value: `### 🧩 \`${found.signature || found.name}\`\n\n${found.doc || ''}${fromOtherFile}`
       }
     };
   }
@@ -432,15 +853,36 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
   return null;
 });
 
-// Go to Definition
+// Go to Definition (Ir a definición)
 connection.onDefinition((params: TextDocumentPositionParams): Definition | null => {
-  const doc = documents.get(params.textDocument.uri);
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
   if (!doc) return null;
 
   const position = params.position;
   const text = doc.getText();
   const offset = doc.offsetAt(position);
+  const parsedDoc = getOrLoadParsedDocument(uri);
 
+  // 1. Check if clicking on an Include / Import statement
+  if (parsedDoc) {
+    for (const inc of parsedDoc.includes) {
+      if (
+        position.line === inc.range.start.line &&
+        position.character >= inc.range.start.character &&
+        position.character <= inc.range.end.character
+      ) {
+        if (inc.resolvedUri) {
+          return Location.create(
+            inc.resolvedUri,
+            Range.create(Position.create(0, 0), Position.create(0, 0))
+          );
+        }
+      }
+    }
+  }
+
+  // 2. Extract word under cursor
   let start = offset;
   while (start > 0 && /[a-zA-Z0-9_]/.test(text[start - 1])) start--;
   let end = offset;
@@ -448,17 +890,33 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
 
   const word = text.substring(start, end);
   if (!word) return null;
+  const wordLower = word.toLowerCase();
 
-  const symbols = parseDocumentSymbols(doc);
-  const found = symbols.find(s => s.name.toLowerCase() === word.toLowerCase());
-  if (found) {
-    return Location.create(
-      params.textDocument.uri,
-      Range.create(
-        Position.create(found.line, found.character),
-        Position.create(found.line, found.character + found.name.length)
-      )
-    );
+  // 3. Search in current document first (matching local/private scopes first)
+  if (parsedDoc) {
+    // Find closest container around cursor line if any
+    const localMatches = parsedDoc.symbols.filter(s => s.name.toLowerCase() === wordLower);
+    if (localMatches.length > 0) {
+      // Prioritize symbols near or within the same container
+      const exactMatch = localMatches[0];
+      return Location.create(exactMatch.uri, exactMatch.selectionRange);
+    }
+  }
+
+  // 4. Search in included files recursively
+  const allSymbols = getAllSymbolsForDocument(uri);
+  const foundInIncludes = allSymbols.find(s => s.name.toLowerCase() === wordLower);
+  if (foundInIncludes) {
+    return Location.create(foundInIncludes.uri, foundInIncludes.selectionRange);
+  }
+
+  // 5. Fallback: Search all parsed documents in the workspace cache
+  for (const [cachedUri, cachedDoc] of parsedDocsCache.entries()) {
+    if (cachedUri === uri) continue;
+    const foundInWorkspace = cachedDoc.symbols.find(s => s.name.toLowerCase() === wordLower);
+    if (foundInWorkspace) {
+      return Location.create(foundInWorkspace.uri, foundInWorkspace.selectionRange);
+    }
   }
 
   return null;
@@ -466,16 +924,16 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
 
 // Document Symbols (Outline View)
 connection.onDocumentSymbol((params): DocumentSymbol[] => {
-  const doc = documents.get(params.textDocument.uri);
+  const uri = params.textDocument.uri;
+  const doc = getOrLoadParsedDocument(uri);
   if (!doc) return [];
 
-  const symbols = parseDocumentSymbols(doc);
-  return symbols.map(s => ({
+  return doc.symbols.map(s => ({
     name: s.name,
     detail: s.signature || '',
     kind: s.kind,
-    range: Range.create(Position.create(s.line, 0), Position.create(s.line, 100)),
-    selectionRange: Range.create(Position.create(s.line, s.character), Position.create(s.line, s.character + s.name.length))
+    range: s.range,
+    selectionRange: s.selectionRange
   }));
 });
 
@@ -493,29 +951,50 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
   if (!match) return null;
 
   const fnName = match[1].toLowerCase();
+
+  // Check builtin function
   const fnInfo = BUILTIN_FUNCTIONS[fnName];
-  if (!fnInfo) return null;
+  if (fnInfo) {
+    const paramIndex = match[2].split(',').length - 1;
+    const sigInfo: SignatureInformation = {
+      label: fnInfo.signature,
+      documentation: fnInfo.doc,
+      parameters: fnInfo.params ? fnInfo.params.map(p => ({ label: p })) : []
+    };
+    return {
+      signatures: [sigInfo],
+      activeSignature: 0,
+      activeParameter: Math.max(0, paramIndex)
+    };
+  }
 
-  const paramIndex = match[2].split(',').length - 1;
+  // Check user defined process / function
+  const allSymbols = getAllSymbolsForDocument(params.textDocument.uri);
+  const userSym = allSymbols.find(s => s.name.toLowerCase() === fnName && (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function));
+  if (userSym && userSym.signature) {
+    const paramIndex = match[2].split(',').length - 1;
+    return {
+      signatures: [{
+        label: userSym.signature,
+        documentation: userSym.doc,
+        parameters: []
+      }],
+      activeSignature: 0,
+      activeParameter: Math.max(0, paramIndex)
+    };
+  }
 
-  const sigInfo: SignatureInformation = {
-    label: fnInfo.signature,
-    documentation: fnInfo.doc,
-    parameters: fnInfo.params ? fnInfo.params.map(p => ({ label: p })) : []
-  };
-
-  return {
-    signatures: [sigInfo],
-    activeSignature: 0,
-    activeParameter: Math.max(0, paramIndex)
-  };
+  return null;
 });
 
-// Live Document Validation (Diagnostics)
+// Document Change Listener
 documents.onDidChangeContent(change => {
+  const uri = change.document.uri;
+  parseDocumentFull(uri, change.document.getText());
   validateDocument(change.document);
 });
 
+// Live Document Validation (Diagnostics)
 function validateDocument(doc: TextDocument): void {
   const text = doc.getText();
   const lines = text.split(/\r?\n/);
@@ -567,7 +1046,6 @@ connection.onDocumentFormatting((params): TextEdit[] => {
 
   const text = doc.getText();
   const lines = text.split(/\r?\n/);
-  const edits: TextEdit[] = [];
 
   let indentLevel = 0;
   const indentSize = params.options.tabSize || 4;
@@ -588,7 +1066,7 @@ connection.onDocumentFormatting((params): TextEdit[] => {
 
     newLines.push(indentStr.repeat(indentLevel) + trimmed);
 
-    if (/^(program|process|function|global|local|private|public|type|struct|begin|if|else|elseif|while|loop|repeat|for|switch)\b/i.test(trimmed)) {
+    if (/^(program|process|function|method|global|local|private|public|const|type|struct|begin|if|else|elseif|while|loop|repeat|for|switch)\b/i.test(trimmed)) {
       indentLevel++;
     }
   }
