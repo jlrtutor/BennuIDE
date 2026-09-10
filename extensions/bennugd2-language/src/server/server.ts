@@ -18,13 +18,11 @@ import {
   SymbolKind,
   SignatureHelp,
   SignatureInformation,
-  ParameterInformation,
   Diagnostic,
   DiagnosticSeverity,
   TextEdit,
   DocumentLink,
-  DocumentLinkParams,
-  WorkspaceFolder
+  DocumentLinkParams
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -36,7 +34,8 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
-let workspaceFolders: string[] = [];
+const projectRoots = new Set<string>();
+const BENNU_EXTENSIONS = ['.prg', '.inc', '.h', '.bgd', '.PRG', '.INC', '.H', '.BGD'];
 
 // BennuGD2 Builtin Functions Database
 interface BGDDoc {
@@ -225,7 +224,6 @@ const CONSTANTS: Record<string, string> = {
   B_CLEAR: 'Borrado automático del fondo de pantalla en cada frame.'
 };
 
-// Types and data structures for symbols and includes
 export interface SymbolDef {
   name: string;
   kind: SymbolKind;
@@ -236,6 +234,7 @@ export interface SymbolDef {
   signature?: string;
   doc?: string;
   type?: string;
+  isDeclare?: boolean;
 }
 
 export interface IncludeRef {
@@ -252,8 +251,45 @@ export interface ParsedDocument {
   mtime: number;
 }
 
-// In-memory cache for parsed documents (both open and disk-read)
+// In-memory document parse cache
 const parsedDocsCache = new Map<string, ParsedDocument>();
+
+/**
+ * Discover project root for a given file by walking up directory tree.
+ */
+function discoverProjectRoot(filePath: string): string {
+  let cur = path.dirname(filePath);
+  let bestRoot = cur;
+
+  while (cur && cur !== path.dirname(cur)) {
+    if (
+      fs.existsSync(path.join(cur, '.git')) ||
+      fs.existsSync(path.join(cur, '.vscode')) ||
+      fs.existsSync(path.join(cur, '.kateproject')) ||
+      fs.existsSync(path.join(cur, 'CMakeLists.txt'))
+    ) {
+      bestRoot = cur;
+      break;
+    }
+
+    try {
+      const entries = fs.readdirSync(cur);
+      const hasMainPrg = entries.some(
+        e => /^(main|game|app|[a-zA-Z0-9_-]+)\.prg$/i.test(e) && !['commons', 'common', 'src', 'include', 'includes'].includes(e.toLowerCase())
+      );
+      if (hasMainPrg) {
+        bestRoot = cur;
+      }
+    } catch {
+      // Ignore read errors
+    }
+
+    cur = path.dirname(cur);
+  }
+
+  projectRoots.add(bestRoot);
+  return bestRoot;
+}
 
 /**
  * Resolve include path to a file URI if it exists on disk.
@@ -262,21 +298,32 @@ function resolveIncludePath(fromUri: string, includePath: string): string | unde
   try {
     let fromDir = '';
     if (fromUri.startsWith('file://')) {
-      fromDir = path.dirname(fileURLToPath(fromUri));
+      const filePath = fileURLToPath(fromUri);
+      fromDir = path.dirname(filePath);
+      discoverProjectRoot(filePath);
     }
 
-    const candidateBases: string[] = [];
+    const candidateBases = new Set<string>();
     if (fromDir) {
-      candidateBases.push(fromDir);
-    }
-    for (const ws of workspaceFolders) {
-      candidateBases.push(ws);
-      candidateBases.push(path.join(ws, 'src'));
-      candidateBases.push(path.join(ws, 'include'));
-      candidateBases.push(path.join(ws, 'includes'));
+      candidateBases.add(fromDir);
     }
 
-    const extensions = ['', '.inc', '.prg', '.bgd', '.INC', '.PRG', '.BGD'];
+    for (const root of projectRoots) {
+      candidateBases.add(root);
+      candidateBases.add(path.join(root, 'src'));
+      candidateBases.add(path.join(root, 'include'));
+      candidateBases.add(path.join(root, 'includes'));
+      candidateBases.add(path.join(root, 'commons'));
+    }
+
+    // Also climb up from fromDir
+    let upDir = fromDir;
+    for (let i = 0; i < 3 && upDir && upDir !== path.dirname(upDir); i++) {
+      upDir = path.dirname(upDir);
+      candidateBases.add(upDir);
+    }
+
+    const extensions = ['', '.inc', '.prg', '.h', '.bgd', '.INC', '.PRG', '.H', '.BGD'];
 
     for (const base of candidateBases) {
       for (const ext of extensions) {
@@ -300,9 +347,10 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
   const symbols: SymbolDef[] = [];
   const includes: IncludeRef[] = [];
 
-  const includeRegex = /^\s*(?:include|import)\s*["']([^"']+)["']/i;
+  const includeRegex = /^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i;
+  const defineRegex = /^\s*#\s*define\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\s+(.*))?$/i;
   const programRegex = /^\s*program\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
-  const procRegex = /^\s*(process|function|method)\s+(?:(?:int|string|float|byte|word|dword|char|short|long|pointer|[a-zA-Z_][a-zA-Z0-9_]*)\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(.*?\))?/i;
+  const procRegex = /^\s*(?:declare\s+)?(process|function|method)\s+(?:(?:int|string|float|double|byte|word|dword|char|short|long|pointer|[a-zA-Z_][a-zA-Z0-9_*]*)\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(.*?\))?/i;
   const structRegex = /^\s*(type|struct)\s+([a-zA-Z_][a-zA-Z0-9_]*)/i;
   const blockStartRegex = /^\s*(global|local|private|public|const)\b/i;
 
@@ -311,12 +359,11 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
-    // Remove comments for statement parsing, keeping position index
     const commentIdx = rawLine.indexOf('//');
     const line = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
     const trimmed = line.trim();
 
-    if (!trimmed) continue;
+    if (!trimmed || trimmed.startsWith('/*')) continue;
 
     // 1. Check Include / Import
     const incMatch = line.match(includeRegex);
@@ -325,7 +372,10 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
       const startCol = rawLine.indexOf(incPath);
       const endCol = startCol + incPath.length;
       const range = Range.create(Position.create(i, 0), Position.create(i, rawLine.length));
-      const selectionRange = Range.create(Position.create(i, Math.max(0, startCol)), Position.create(i, Math.max(0, endCol)));
+      const selectionRange = Range.create(
+        Position.create(i, Math.max(0, startCol)),
+        Position.create(i, Math.max(0, endCol))
+      );
       const resolvedUri = resolveIncludePath(uri, incPath);
 
       includes.push({
@@ -337,7 +387,27 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
       continue;
     }
 
-    // 2. Program declaration
+    // 2. Preprocessor #define macros / constants
+    const defMatch = line.match(defineRegex);
+    if (defMatch) {
+      const defName = defMatch[1];
+      const defVal = defMatch[2] ? defMatch[2].trim() : '';
+      const startCol = rawLine.indexOf(defName);
+      symbols.push({
+        name: defName,
+        kind: SymbolKind.Constant,
+        uri,
+        containerName: currentContainer,
+        range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
+        selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + defName.length)),
+        signature: `#define ${defName} ${defVal}`,
+        doc: `Macro / Constante: \`${defName}\`${defVal ? ' = `' + defVal + '`' : ''}`,
+        isDeclare: false
+      });
+      continue;
+    }
+
+    // 3. Program declaration
     const progMatch = line.match(programRegex);
     if (progMatch) {
       const name = progMatch[1];
@@ -350,20 +420,24 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
         range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
         selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + name.length)),
         signature: `program ${name}`,
-        doc: `Programa principal: ${name}`
+        doc: `Programa principal: ${name}`,
+        isDeclare: false
       });
       continue;
     }
 
-    // 3. Process / Function / Method declaration
+    // 4. Process / Function / Method declaration
     const procMatch = line.match(procRegex);
     if (procMatch) {
+      const isDeclare = /^\s*declare\b/i.test(line);
       const kindKeyword = procMatch[1].toLowerCase();
       const name = procMatch[2];
       const params = procMatch[3] || '()';
       const kind = kindKeyword === 'process' ? SymbolKind.Class : SymbolKind.Function;
       const startCol = line.indexOf(name);
-      currentContainer = name;
+      if (!isDeclare) {
+        currentContainer = name;
+      }
 
       symbols.push({
         name,
@@ -371,11 +445,12 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
         uri,
         range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
         selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + name.length)),
-        signature: `${procMatch[1]} ${name}${params}`,
-        doc: `Definición de ${procMatch[1]} '${name}'`
+        signature: `${isDeclare ? 'declare ' : ''}${procMatch[1]} ${name}${params}`,
+        doc: `${isDeclare ? 'Declaración de' : 'Definición de'} ${procMatch[1]} '${name}'`,
+        isDeclare
       });
 
-      // Parse parameters as local variables of this process/function
+      // Parse parameters
       if (procMatch[3]) {
         const paramStr = procMatch[3].replace(/^\(|\)$/g, '');
         const paramParts = paramStr.split(',');
@@ -391,11 +466,12 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
                   name: pName,
                   kind: SymbolKind.Variable,
                   uri,
-                  containerName: currentContainer,
+                  containerName: name,
                   range: Range.create(Position.create(i, pStart), Position.create(i, pStart + pName.length)),
                   selectionRange: Range.create(Position.create(i, pStart), Position.create(i, pStart + pName.length)),
                   signature: `(Parámetro) ${pTrim}`,
-                  doc: `Parámetro '${pName}' de ${name}`
+                  doc: `Parámetro '${pName}' de ${name}`,
+                  isDeclare
                 });
               }
             }
@@ -405,7 +481,7 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
       continue;
     }
 
-    // 4. Struct / Type declaration
+    // 5. Struct / Type declaration
     const structMatch = line.match(structRegex);
     if (structMatch) {
       const structName = structMatch[2];
@@ -418,16 +494,16 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
         range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
         selectionRange: Range.create(Position.create(i, startCol), Position.create(i, startCol + structName.length)),
         signature: `${structMatch[1]} ${structName}`,
-        doc: `Estructura o tipo de datos '${structName}'`
+        doc: `Estructura o tipo de datos '${structName}'`,
+        isDeclare: false
       });
       continue;
     }
 
-    // 5. Block headers (global, local, private, public, const)
+    // 6. Block headers (global, local, private, public, const)
     const blockMatch = line.match(blockStartRegex);
     if (blockMatch) {
       currentBlockType = blockMatch[1].toLowerCase() as any;
-      // Check if it's an inline single declaration like: global int foo = 1; or const PI = 3.14;
       const rest = line.substring(line.indexOf(blockMatch[1]) + blockMatch[1].length).trim();
       if (rest.length > 0 && !rest.startsWith('//')) {
         parseBlockLine(rest, i, rawLine, currentBlockType, currentContainer, uri, symbols);
@@ -436,18 +512,15 @@ export function parseDocumentFull(uri: string, text: string, mtime: number = Dat
       continue;
     }
 
-    // 6. Block closure or statement transitions
+    // 7. Block closure
     if (/^\s*(end|begin)\b/i.test(trimmed)) {
       if (currentBlockType) {
         currentBlockType = undefined;
       }
-      if (/^\s*end\b/i.test(trimmed) && !currentBlockType) {
-        // May close process / function / struct
-      }
       continue;
     }
 
-    // 7. Parse lines inside variable or constant blocks
+    // 8. Parse lines inside variable or constant blocks
     if (currentBlockType) {
       parseBlockLine(trimmed, i, rawLine, currentBlockType, currentContainer, uri, symbols);
     }
@@ -470,12 +543,10 @@ function parseBlockLine(
   uri: string,
   symbols: SymbolDef[]
 ): void {
-  // Strip trailing semicolon
-  let cleanLine = line.replace(/;+$/, '').trim();
+  const cleanLine = line.replace(/;+$/, '').trim();
   if (!cleanLine) return;
 
   if (blockType === 'const') {
-    // Examples: CONST_NAME = 10, int CONST_NAME = 10, MSG = "Hello"
     const constMatch = cleanLine.match(/^(?:[a-zA-Z0-9_*]+\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.*)$/);
     if (constMatch) {
       const name = constMatch[1];
@@ -490,31 +561,24 @@ function parseBlockLine(
           range: Range.create(Position.create(lineNum, 0), Position.create(lineNum, rawLine.length)),
           selectionRange: Range.create(Position.create(lineNum, startCol), Position.create(lineNum, startCol + name.length)),
           signature: `const ${name} = ${val}`,
-          doc: `Constante: ${name} = ${val}`
+          doc: `Constante: ${name} = ${val}`,
+          isDeclare: false
         });
       }
     }
   } else {
-    // Variable block (global, local, private, public)
-    // Examples:
-    // int score = 0, high_score = 1000
-    // string name
-    // Actor player
-    // speed = 5
     let varType = 'int';
     let declBody = cleanLine;
 
-    // Detect optional leading type: int, string, float, byte, word, dword, char, short, long, pointer, struct, or CustomType
     const typeMatch = cleanLine.match(/^([a-zA-Z_][a-zA-Z0-9_*]*)\s+([a-zA-Z_].*)$/);
     if (typeMatch && !typeMatch[1].includes('=')) {
       varType = typeMatch[1];
       declBody = typeMatch[2];
     }
 
-    // Split multiple declarations: a = 1, b = 2, c
     const vars = declBody.split(',');
     for (const v of vars) {
-      const vMatch = v.trim().match(/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*=\s*(.*))?$/);
+      const vMatch = v.trim().match(/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\[[^\]]*\])?(?:\s*=\s*(.*))?$/);
       if (vMatch) {
         const vName = vMatch[1];
         const initialVal = vMatch[2];
@@ -530,7 +594,8 @@ function parseBlockLine(
             range: Range.create(Position.create(lineNum, 0), Position.create(lineNum, rawLine.length)),
             selectionRange: Range.create(Position.create(lineNum, startCol), Position.create(lineNum, startCol + vName.length)),
             signature: `${blockType} ${varType} ${vName}${initialVal ? ' = ' + initialVal : ''}`,
-            doc: `Variable (${blockType}) \`${varType} ${vName}\`${containerName ? ` en ${containerName}` : ''}`
+            doc: `Variable (${blockType}) \`${varType} ${vName}\`${containerName ? ` en ${containerName}` : ''}`,
+            isDeclare: false
           });
         }
       }
@@ -549,7 +614,6 @@ function getOrLoadParsedDocument(uri: string): ParsedDocument | null {
     return parseDocumentFull(uri, openDoc.getText());
   }
 
-  // Load from disk if file URI
   if (uri.startsWith('file://')) {
     try {
       const filePath = fileURLToPath(uri);
@@ -559,13 +623,13 @@ function getOrLoadParsedDocument(uri: string): ParsedDocument | null {
         if (cached && cached.mtime >= stat.mtimeMs) {
           return cached;
         }
-        if (stat.size < 2 * 1024 * 1024) {
+        if (stat.size < 3 * 1024 * 1024) {
           const text = fs.readFileSync(filePath, 'utf-8');
           return parseDocumentFull(uri, text, stat.mtimeMs);
         }
       }
     } catch {
-      // Disk load failure ignored
+      // Ignore disk read error
     }
   }
 
@@ -594,14 +658,8 @@ function getAllSymbolsForDocument(rootUri: string, visited: Set<string> = new Se
 }
 
 /**
- * Scan workspace files to ensure cross-project index is populated.
+ * Scan directory recursively for all BennuGD files.
  */
-function scanWorkspace(): void {
-  for (const root of workspaceFolders) {
-    scanDirectory(root, 0, 5);
-  }
-}
-
 function scanDirectory(dir: string, depth: number, maxDepth: number): void {
   if (depth > maxDepth) return;
   try {
@@ -615,7 +673,7 @@ function scanDirectory(dir: string, depth: number, maxDepth: number): void {
         scanDirectory(full, depth + 1, maxDepth);
       } else if (ent.isFile()) {
         const ext = path.extname(ent.name).toLowerCase();
-        if (['.prg', '.inc', '.bgd'].includes(ext)) {
+        if (BENNU_EXTENSIONS.includes(ext)) {
           const fileUri = pathToFileURL(full).toString();
           getOrLoadParsedDocument(fileUri);
         }
@@ -626,19 +684,28 @@ function scanDirectory(dir: string, depth: number, maxDepth: number): void {
   }
 }
 
+/**
+ * Scan all known project roots.
+ */
+function scanProjectRoots(): void {
+  for (const root of projectRoots) {
+    scanDirectory(root, 0, 6);
+  }
+}
+
 connection.onInitialize((params: InitializeParams): InitializeResult => {
   if (params.workspaceFolders && params.workspaceFolders.length > 0) {
-    workspaceFolders = params.workspaceFolders
-      .map(wf => (wf.uri.startsWith('file://') ? fileURLToPath(wf.uri) : wf.uri))
-      .filter(p => !!p);
+    for (const wf of params.workspaceFolders) {
+      const p = wf.uri.startsWith('file://') ? fileURLToPath(wf.uri) : wf.uri;
+      if (p) projectRoots.add(p);
+    }
   } else if (params.rootUri && params.rootUri.startsWith('file://')) {
-    workspaceFolders = [fileURLToPath(params.rootUri)];
+    projectRoots.add(fileURLToPath(params.rootUri));
   } else if (params.rootPath) {
-    workspaceFolders = [params.rootPath];
+    projectRoots.add(params.rootPath);
   }
 
-  // Scan workspace files in background
-  setTimeout(() => scanWorkspace(), 500);
+  setTimeout(() => scanProjectRoots(), 300);
 
   const result: InitializeResult = {
     capabilities: {
@@ -663,7 +730,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
   return result;
 });
 
-// Document links for include "..." and import "..."
+// Document Links for include "..." and import "..."
 connection.onDocumentLink((params: DocumentLinkParams): DocumentLink[] => {
   const doc = getOrLoadParsedDocument(params.textDocument.uri);
   if (!doc) return [];
@@ -680,7 +747,6 @@ connection.onDocumentLink((params: DocumentLinkParams): DocumentLink[] => {
 // Autocompletion
 connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
   const uri = textDocumentPosition.textDocument.uri;
-  const doc = getOrLoadParsedDocument(uri);
   const items: CompletionItem[] = [];
   const seenLabels = new Set<string>();
 
@@ -725,7 +791,7 @@ connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Comp
     });
   }
 
-  // 4. User symbols from document and all resolved includes
+  // 4. Project & Include symbols
   const allSymbols = getAllSymbolsForDocument(uri);
   for (const sym of allSymbols) {
     let kind = CompletionItemKind.Variable;
@@ -748,7 +814,7 @@ connection.onCompletion((textDocumentPosition: TextDocumentPositionParams): Comp
     'const', 'type', 'struct', 'if', 'else', 'elseif', 'switch', 'case', 'default',
     'while', 'loop', 'repeat', 'until', 'for', 'from', 'to', 'step', 'break', 'continue',
     'return', 'frame', 'signal', 'clone', 'import', 'include', 'declare', 'int', 'string',
-    'float', 'byte', 'word', 'dword', 'char', 'short', 'long', 'pointer'
+    'float', 'double', 'byte', 'word', 'dword', 'char', 'short', 'long', 'pointer'
   ];
 
   for (const kw of keywords) {
@@ -837,11 +903,27 @@ connection.onHover((params: TextDocumentPositionParams): Hover | null => {
     };
   }
 
-  // Check User Defined Symbols across Document and Includes
-  const allSymbols = getAllSymbolsForDocument(uri);
-  const found = allSymbols.find(s => s.name.toLowerCase() === wordLower);
-  if (found) {
-    const fromOtherFile = found.uri !== uri ? `\n\n*Definido en: \`${path.basename(fileURLToPath(found.uri))}\`*` : '';
+  // Check User Defined Symbols across Document, Includes & Project Cache
+  const candidates: SymbolDef[] = [];
+  const docSymbols = getAllSymbolsForDocument(uri);
+  for (const s of docSymbols) {
+    if (s.name.toLowerCase() === wordLower) candidates.push(s);
+  }
+
+  if (candidates.length === 0) {
+    for (const cachedDoc of parsedDocsCache.values()) {
+      for (const s of cachedDoc.symbols) {
+        if (s.name.toLowerCase() === wordLower) candidates.push(s);
+      }
+    }
+  }
+
+  candidates.sort((a, b) => (a.isDeclare === b.isDeclare ? 0 : a.isDeclare ? 1 : -1));
+
+  if (candidates.length > 0) {
+    const found = candidates[0];
+    const fromOtherFile =
+      found.uri !== uri ? `\n\n*Definido en: \`${path.basename(fileURLToPath(found.uri))}\`*` : '';
     return {
       contents: {
         kind: MarkupKind.Markdown,
@@ -858,6 +940,10 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
   const uri = params.textDocument.uri;
   const doc = documents.get(uri);
   if (!doc) return null;
+
+  if (uri.startsWith('file://')) {
+    discoverProjectRoot(fileURLToPath(uri));
+  }
 
   const position = params.position;
   const text = doc.getText();
@@ -892,31 +978,45 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
   if (!word) return null;
   const wordLower = word.toLowerCase();
 
-  // 3. Search in current document first (matching local/private scopes first)
+  const candidates: SymbolDef[] = [];
+
+  // 3. Search in current document
   if (parsedDoc) {
-    // Find closest container around cursor line if any
-    const localMatches = parsedDoc.symbols.filter(s => s.name.toLowerCase() === wordLower);
-    if (localMatches.length > 0) {
-      // Prioritize symbols near or within the same container
-      const exactMatch = localMatches[0];
-      return Location.create(exactMatch.uri, exactMatch.selectionRange);
+    for (const s of parsedDoc.symbols) {
+      if (s.name.toLowerCase() === wordLower) {
+        candidates.push(s);
+      }
     }
   }
 
-  // 4. Search in included files recursively
-  const allSymbols = getAllSymbolsForDocument(uri);
-  const foundInIncludes = allSymbols.find(s => s.name.toLowerCase() === wordLower);
-  if (foundInIncludes) {
-    return Location.create(foundInIncludes.uri, foundInIncludes.selectionRange);
+  // 4. Search in included files
+  if (candidates.length === 0 || candidates.every(c => c.isDeclare)) {
+    const includedSymbols = getAllSymbolsForDocument(uri);
+    for (const s of includedSymbols) {
+      if (s.name.toLowerCase() === wordLower) {
+        candidates.push(s);
+      }
+    }
   }
 
-  // 5. Fallback: Search all parsed documents in the workspace cache
-  for (const [cachedUri, cachedDoc] of parsedDocsCache.entries()) {
-    if (cachedUri === uri) continue;
-    const foundInWorkspace = cachedDoc.symbols.find(s => s.name.toLowerCase() === wordLower);
-    if (foundInWorkspace) {
-      return Location.create(foundInWorkspace.uri, foundInWorkspace.selectionRange);
+  // 5. If not found or only declared, scan and search all project documents
+  if (candidates.length === 0 || candidates.every(c => c.isDeclare)) {
+    scanProjectRoots();
+    for (const cachedDoc of parsedDocsCache.values()) {
+      for (const s of cachedDoc.symbols) {
+        if (s.name.toLowerCase() === wordLower) {
+          candidates.push(s);
+        }
+      }
     }
+  }
+
+  // Prioritize implementation definitions over declarations (declare)
+  candidates.sort((a, b) => (a.isDeclare === b.isDeclare ? 0 : a.isDeclare ? 1 : -1));
+
+  if (candidates.length > 0) {
+    const match = candidates[0];
+    return Location.create(match.uri, match.selectionRange);
   }
 
   return null;
@@ -928,13 +1028,15 @@ connection.onDocumentSymbol((params): DocumentSymbol[] => {
   const doc = getOrLoadParsedDocument(uri);
   if (!doc) return [];
 
-  return doc.symbols.map(s => ({
-    name: s.name,
-    detail: s.signature || '',
-    kind: s.kind,
-    range: s.range,
-    selectionRange: s.selectionRange
-  }));
+  return doc.symbols
+    .filter(s => !s.isDeclare)
+    .map(s => ({
+      name: s.name,
+      detail: s.signature || '',
+      kind: s.kind,
+      range: s.range,
+      selectionRange: s.selectionRange
+    }));
 });
 
 // Signature Help
@@ -945,7 +1047,6 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
   const text = doc.getText();
   const offset = doc.offsetAt(params.position);
 
-  // Look backwards for function name
   const lineBefore = text.substring(0, offset);
   const match = lineBefore.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)$/);
   if (!match) return null;
@@ -970,15 +1071,19 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
 
   // Check user defined process / function
   const allSymbols = getAllSymbolsForDocument(params.textDocument.uri);
-  const userSym = allSymbols.find(s => s.name.toLowerCase() === fnName && (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function));
+  const userSym = allSymbols.find(
+    s => s.name.toLowerCase() === fnName && (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function)
+  );
   if (userSym && userSym.signature) {
     const paramIndex = match[2].split(',').length - 1;
     return {
-      signatures: [{
-        label: userSym.signature,
-        documentation: userSym.doc,
-        parameters: []
-      }],
+      signatures: [
+        {
+          label: userSym.signature,
+          documentation: userSym.doc,
+          parameters: []
+        }
+      ],
       activeSignature: 0,
       activeParameter: Math.max(0, paramIndex)
     };
@@ -990,6 +1095,9 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
 // Document Change Listener
 documents.onDidChangeContent(change => {
   const uri = change.document.uri;
+  if (uri.startsWith('file://')) {
+    discoverProjectRoot(fileURLToPath(uri));
+  }
   parseDocumentFull(uri, change.document.getText());
   validateDocument(change.document);
 });
@@ -1006,13 +1114,11 @@ function validateDocument(doc: TextDocument): void {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Check begin / end match
     const begins = (line.match(/\bbegin\b/gi) || []).length;
     const ends = (line.match(/\bend\b/gi) || []).length;
     beginCount += begins;
     endCount += ends;
 
-    // Check for unclosed double quotes
     let quoteCount = 0;
     for (let char of line) {
       if (char === '"') quoteCount++;
@@ -1066,7 +1172,11 @@ connection.onDocumentFormatting((params): TextEdit[] => {
 
     newLines.push(indentStr.repeat(indentLevel) + trimmed);
 
-    if (/^(program|process|function|method|global|local|private|public|const|type|struct|begin|if|else|elseif|while|loop|repeat|for|switch)\b/i.test(trimmed)) {
+    if (
+      /^(program|process|function|method|global|local|private|public|const|type|struct|begin|if|else|elseif|while|loop|repeat|for|switch)\b/i.test(
+        trimmed
+      )
+    ) {
       indentLevel++;
     }
   }

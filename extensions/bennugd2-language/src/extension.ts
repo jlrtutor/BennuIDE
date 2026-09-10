@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: 'file', language: 'bennugd2' }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{prg,inc,bgd,PRG,INC,BGD}')
+      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{prg,inc,bgd,h,PRG,INC,BGD,H}')
     }
   };
 
