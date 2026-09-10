@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { findDefinitionAt, resolveIncludePath, discoverProjectRoot } from './bennuSymbolParser';
+import { findDefinitionAt, resolveAssetOrFilePath, discoverProjectRoot } from './bennuSymbolParser';
 
 export class BennuDefinitionProvider implements vscode.DefinitionProvider {
   provideDefinition(
@@ -33,14 +33,31 @@ export class BennuDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+
+      // 1. Check Include / Import
       const incMatch = line.match(/^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i);
       if (incMatch) {
         const incPath = incMatch[1];
         const startCol = line.indexOf(incPath);
         const endCol = startCol + incPath.length;
-        const resolved = resolveIncludePath(filePath, incPath);
+        const resolved = resolveAssetOrFilePath(filePath, incPath);
         if (resolved) {
           const range = new vscode.Range(new vscode.Position(i, startCol), new vscode.Position(i, endCol));
+          links.push(new vscode.DocumentLink(range, vscode.Uri.file(resolved)));
+        }
+        continue;
+      }
+
+      // 2. Check any quoted strings (e.g. "graphics/general.fpg", "/screens/screens.fpg", "music/song.ogg")
+      const quoteRegex = /"([^"]+)"|'([^']+)'/g;
+      let qMatch: RegExpExecArray | null;
+      while ((qMatch = quoteRegex.exec(line)) !== null) {
+        const qStr = qMatch[1] || qMatch[2];
+        const qStart = qMatch.index + 1; // inner string start
+        const qEnd = qStart + qStr.length;
+        const resolved = resolveAssetOrFilePath(filePath, qStr);
+        if (resolved) {
+          const range = new vscode.Range(new vscode.Position(i, qStart), new vscode.Position(i, qEnd));
           links.push(new vscode.DocumentLink(range, vscode.Uri.file(resolved)));
         }
       }

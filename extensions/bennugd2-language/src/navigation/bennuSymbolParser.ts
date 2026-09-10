@@ -31,6 +31,7 @@ export interface ParsedBennuFile {
 
 const fileCache = new Map<string, ParsedBennuFile>();
 export const projectRoots = new Set<string>();
+const allProjectFiles = new Set<string>();
 
 export const BENNU_EXTENSIONS = ['.prg', '.inc', '.h', '.bgd', '.PRG', '.INC', '.H', '.BGD'];
 
@@ -72,10 +73,14 @@ export function discoverProjectRoot(filePath: string): string {
 }
 
 /**
- * Resolve include path to an absolute filesystem path if it exists on disk.
+ * Resolve any asset or source file path (supporting .fpg, .fnt, .map, .png, .prg, .inc, .h, etc.)
  */
-export function resolveIncludePath(fromFilePath: string, includePath: string): string | undefined {
+export function resolveAssetOrFilePath(fromFilePath: string, rawStr: string): string | undefined {
   try {
+    let clean = rawStr.replace(/^["']|["']$/g, '').trim();
+    clean = clean.replace(/^\/+/, '');
+    if (!clean || clean === '/' || clean === '.') return undefined;
+
     const fromDir = path.dirname(fromFilePath);
     discoverProjectRoot(fromFilePath);
 
@@ -84,10 +89,17 @@ export function resolveIncludePath(fromFilePath: string, includePath: string): s
 
     for (const root of projectRoots) {
       candidateBases.add(root);
+      candidateBases.add(path.join(root, 'graphics'));
+      candidateBases.add(path.join(root, 'gfx'));
+      candidateBases.add(path.join(root, 'fonts'));
+      candidateBases.add(path.join(root, 'sounds'));
+      candidateBases.add(path.join(root, 'audio'));
+      candidateBases.add(path.join(root, 'music'));
+      candidateBases.add(path.join(root, 'maps'));
+      candidateBases.add(path.join(root, 'commons'));
       candidateBases.add(path.join(root, 'src'));
       candidateBases.add(path.join(root, 'include'));
       candidateBases.add(path.join(root, 'includes'));
-      candidateBases.add(path.join(root, 'commons'));
     }
 
     let upDir = fromDir;
@@ -96,13 +108,31 @@ export function resolveIncludePath(fromFilePath: string, includePath: string): s
       candidateBases.add(upDir);
     }
 
-    const extensions = ['', '.inc', '.prg', '.h', '.bgd', '.INC', '.PRG', '.H', '.BGD'];
+    const extensions = ['', '.fpg', '.fnt', '.fnx', '.map', '.png', '.prg', '.inc', '.h', '.bgd', '.wav', '.ogg'];
 
+    // 1. Check direct paths
     for (const base of candidateBases) {
       for (const ext of extensions) {
-        const fullPath = path.resolve(base, includePath + (includePath.includes('.') && ext === '' ? '' : ext));
+        const fullPath = path.resolve(base, clean + (clean.includes('.') && ext === '' ? '' : ext));
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
           return fullPath;
+        }
+      }
+    }
+
+    // 2. Search project files by suffix or basename
+    if (/\.[a-zA-Z0-9_]+$/i.test(clean)) {
+      scanAllProjects();
+      for (const f of allProjectFiles) {
+        if (f.toLowerCase().endsWith(clean.toLowerCase())) {
+          return f;
+        }
+      }
+
+      const baseName = path.basename(clean).toLowerCase();
+      for (const f of allProjectFiles) {
+        if (path.basename(f).toLowerCase() === baseName) {
+          return f;
         }
       }
     }
@@ -113,7 +143,14 @@ export function resolveIncludePath(fromFilePath: string, includePath: string): s
 }
 
 /**
- * Scan directory recursively for all BennuGD files.
+ * Resolve include path (alias to asset/file resolver).
+ */
+export function resolveIncludePath(fromFilePath: string, includePath: string): string | undefined {
+  return resolveAssetOrFilePath(fromFilePath, includePath);
+}
+
+/**
+ * Scan directory recursively for all BennuGD files and assets.
  */
 export function scanDirectory(dir: string, depth: number = 0, maxDepth: number = 6): void {
   if (depth > maxDepth) return;
@@ -127,6 +164,7 @@ export function scanDirectory(dir: string, depth: number = 0, maxDepth: number =
       if (ent.isDirectory()) {
         scanDirectory(full, depth + 1, maxDepth);
       } else if (ent.isFile()) {
+        allProjectFiles.add(full);
         const ext = path.extname(ent.name).toLowerCase();
         if (BENNU_EXTENSIONS.includes(ext)) {
           getOrLoadParsedFile(full);
@@ -474,16 +512,16 @@ export function findDefinitionAt(filePath: string, lineNum: number, charNum: num
     } catch {}
   }
 
-  // 1. Check if line contains an Include / Import
+  // 1. Direct check: Is current line an include / import?
   const incMatch = currentLine.match(/^\s*#?\s*(?:include|import)\s*["']([^"']+)["']/i);
   if (incMatch) {
-    const resolved = resolveIncludePath(filePath, incMatch[1]);
+    const resolved = resolveAssetOrFilePath(filePath, incMatch[1]);
     if (resolved) {
       return { file: resolved, line: 0, startCol: 0, endCol: 0, isInclude: true };
     }
   }
 
-  // 1b. Check quoted string
+  // 1b. Check if cursor is on/inside a quoted string referencing an asset or file
   const quoteRegex = /"([^"]+)"|'([^']+)'/g;
   let qMatch: RegExpExecArray | null;
   while ((qMatch = quoteRegex.exec(currentLine)) !== null) {
@@ -491,10 +529,20 @@ export function findDefinitionAt(filePath: string, lineNum: number, charNum: num
     const qStart = qMatch.index;
     const qEnd = qMatch.index + qMatch[0].length;
     if (charNum >= qStart && charNum <= qEnd) {
-      const resolved = resolveIncludePath(filePath, qStr);
+      const resolved = resolveAssetOrFilePath(filePath, qStr);
       if (resolved) {
         return { file: resolved, line: 0, startCol: 0, endCol: 0, isInclude: true };
       }
+    }
+  }
+
+  // 1c. Check if line contains fpg_load, load_fpg, map_load, load_map, fnt_load, sound_load, etc.
+  const loadFnMatch = currentLine.match(/\b(?:fpg_load|load_fpg|map_load|load_map|fnt_load|load_fnt|sound_load|load_wav|load_song)\s*\(\s*(?:[^",)]*["']([^"']+)["'])?/i);
+  if (loadFnMatch && loadFnMatch[1]) {
+    const qStr = loadFnMatch[1];
+    const resolved = resolveAssetOrFilePath(filePath, qStr);
+    if (resolved) {
+      return { file: resolved, line: 0, startCol: 0, endCol: 0, isInclude: true };
     }
   }
 

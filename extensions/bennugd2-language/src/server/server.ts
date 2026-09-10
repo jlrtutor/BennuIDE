@@ -291,11 +291,17 @@ function discoverProjectRoot(filePath: string): string {
   return bestRoot;
 }
 
+const allProjectFiles = new Set<string>();
+
 /**
- * Resolve include path to a file URI if it exists on disk.
+ * Resolve any asset or source file path (supporting .fpg, .fnt, .map, .png, .prg, .inc, .h, etc.)
  */
-function resolveIncludePath(fromUri: string, includePath: string): string | undefined {
+function resolveAssetOrFilePath(fromUri: string, rawStr: string): string | undefined {
   try {
+    let clean = rawStr.replace(/^["']|["']$/g, '').trim();
+    clean = clean.replace(/^\/+/, '');
+    if (!clean || clean === '/' || clean === '.') return undefined;
+
     let fromDir = '';
     if (fromUri.startsWith('file://')) {
       const filePath = fileURLToPath(fromUri);
@@ -304,32 +310,53 @@ function resolveIncludePath(fromUri: string, includePath: string): string | unde
     }
 
     const candidateBases = new Set<string>();
-    if (fromDir) {
-      candidateBases.add(fromDir);
-    }
+    if (fromDir) candidateBases.add(fromDir);
 
     for (const root of projectRoots) {
       candidateBases.add(root);
+      candidateBases.add(path.join(root, 'graphics'));
+      candidateBases.add(path.join(root, 'gfx'));
+      candidateBases.add(path.join(root, 'fonts'));
+      candidateBases.add(path.join(root, 'sounds'));
+      candidateBases.add(path.join(root, 'audio'));
+      candidateBases.add(path.join(root, 'music'));
+      candidateBases.add(path.join(root, 'maps'));
+      candidateBases.add(path.join(root, 'commons'));
       candidateBases.add(path.join(root, 'src'));
       candidateBases.add(path.join(root, 'include'));
       candidateBases.add(path.join(root, 'includes'));
-      candidateBases.add(path.join(root, 'commons'));
     }
 
-    // Also climb up from fromDir
     let upDir = fromDir;
-    for (let i = 0; i < 3 && upDir && upDir !== path.dirname(upDir); i++) {
+    for (let i = 0; i < 4 && upDir && upDir !== path.dirname(upDir); i++) {
       upDir = path.dirname(upDir);
       candidateBases.add(upDir);
     }
 
-    const extensions = ['', '.inc', '.prg', '.h', '.bgd', '.INC', '.PRG', '.H', '.BGD'];
+    const extensions = ['', '.fpg', '.fnt', '.fnx', '.map', '.png', '.prg', '.inc', '.h', '.bgd', '.wav', '.ogg'];
 
+    // 1. Direct candidate paths
     for (const base of candidateBases) {
       for (const ext of extensions) {
-        const fullPath = path.resolve(base, includePath + (includePath.includes('.') && ext === '' ? '' : ext));
+        const fullPath = path.resolve(base, clean + (clean.includes('.') && ext === '' ? '' : ext));
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
           return pathToFileURL(fullPath).toString();
+        }
+      }
+    }
+
+    // 2. Search all project files by suffix or basename
+    if (/\.[a-zA-Z0-9_]+$/i.test(clean)) {
+      scanProjectRoots();
+      for (const f of allProjectFiles) {
+        if (f.toLowerCase().endsWith(clean.toLowerCase())) {
+          return pathToFileURL(f).toString();
+        }
+      }
+      const baseName = path.basename(clean).toLowerCase();
+      for (const f of allProjectFiles) {
+        if (path.basename(f).toLowerCase() === baseName) {
+          return pathToFileURL(f).toString();
         }
       }
     }
@@ -337,6 +364,10 @@ function resolveIncludePath(fromUri: string, includePath: string): string | unde
     // Ignore resolution errors
   }
   return undefined;
+}
+
+function resolveIncludePath(fromUri: string, includePath: string): string | undefined {
+  return resolveAssetOrFilePath(fromUri, includePath);
 }
 
 /**
@@ -672,6 +703,7 @@ function scanDirectory(dir: string, depth: number, maxDepth: number): void {
       if (ent.isDirectory()) {
         scanDirectory(full, depth + 1, maxDepth);
       } else if (ent.isFile()) {
+        allProjectFiles.add(full);
         const ext = path.extname(ent.name).toLowerCase();
         if (BENNU_EXTENSIONS.includes(ext)) {
           const fileUri = pathToFileURL(full).toString();
