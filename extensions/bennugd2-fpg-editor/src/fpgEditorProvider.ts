@@ -180,30 +180,44 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
           break;
         }
 
+        case 'addSprites':
         case 'addSprite': {
-          const targetCode = parseInt(message.code, 10);
-          const existingIndex = document.fpg.sprites.findIndex(s => s.code === targetCode);
-
-          const newSprite: FpgSprite = {
-            code: targetCode,
-            description: message.description || `Sprite ${targetCode}`,
-            filename: message.filename || `sprite_${targetCode}.png`,
+          const rawSprites = message.sprites || (message.code !== undefined ? [{
+            code: message.code,
+            description: message.description,
+            filename: message.filename,
             width: message.width,
             height: message.height,
-            controlPoints: [{ x: Math.floor(message.width / 2), y: Math.floor(message.height / 2) }],
-            rgbaData: new Uint8Array(message.rgbaData)
-          };
+            rgbaData: message.rgbaData
+          }] : []);
 
-          if (existingIndex >= 0) {
-            // Overwrite existing sprite
-            document.fpg.sprites[existingIndex] = newSprite;
-            vscode.window.showInformationMessage(`Gráfico ID #${targetCode} sobrescrito.`);
-          } else {
-            // Append and sort by code
-            document.fpg.sprites.push(newSprite);
-            document.fpg.sprites.sort((a, b) => a.code - b.code);
-            vscode.window.showInformationMessage(`Nuevo gráfico ID #${targetCode} añadido.`);
+          let addedCount = 0;
+          let overwrittenCount = 0;
+
+          for (const item of rawSprites) {
+            const targetCode = parseInt(item.code, 10);
+            const existingIndex = document.fpg.sprites.findIndex(s => s.code === targetCode);
+
+            const newSprite: FpgSprite = {
+              code: targetCode,
+              description: item.description || `Sprite ${targetCode}`,
+              filename: item.filename || `sprite_${targetCode}.png`,
+              width: item.width,
+              height: item.height,
+              controlPoints: [{ x: Math.floor(item.width / 2), y: Math.floor(item.height / 2) }],
+              rgbaData: new Uint8Array(item.rgbaData)
+            };
+
+            if (existingIndex >= 0) {
+              document.fpg.sprites[existingIndex] = newSprite;
+              overwrittenCount++;
+            } else {
+              document.fpg.sprites.push(newSprite);
+              addedCount++;
+            }
           }
+
+          document.fpg.sprites.sort((a, b) => a.code - b.code);
 
           this._onDidChangeCustomDocument.fire({
             document,
@@ -211,6 +225,16 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
             redo: () => {}
           });
           sendFpgData();
+
+          if (rawSprites.length === 1) {
+            if (overwrittenCount > 0) {
+              vscode.window.showInformationMessage(`Gráfico ID #${rawSprites[0].code} sobrescrito.`);
+            } else {
+              vscode.window.showInformationMessage(`Nuevo gráfico ID #${rawSprites[0].code} añadido.`);
+            }
+          } else if (rawSprites.length > 1) {
+            vscode.window.showInformationMessage(`Se han procesado ${rawSprites.length} gráficos (${addedCount} nuevos, ${overwrittenCount} sobrescritos).`);
+          }
           break;
         }
       }
@@ -613,7 +637,9 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 8px;
-      width: 420px;
+      width: 440px;
+      max-width: 90vw;
+      max-height: 85vh;
       box-shadow: 0 10px 30px rgba(0,0,0,0.7);
       display: flex;
       flex-direction: column;
@@ -639,6 +665,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       display: flex;
       flex-direction: column;
       gap: 12px;
+      overflow-y: auto;
     }
     .modal-footer {
       padding: 10px 16px;
@@ -673,6 +700,51 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       font-size: 12px;
       display: none;
     }
+
+    /* Multi Thumbnail Preview Grid in Add Modal */
+    .multi-thumb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+      gap: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 8px;
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+    }
+    .multi-thumb-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 4px;
+      padding: 4px;
+      position: relative;
+    }
+    .multi-thumb-card.collision {
+      border-color: var(--warning);
+      background: rgba(241, 196, 15, 0.08);
+    }
+    .multi-thumb-card canvas {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 8px 8px;
+      border-radius: 3px;
+    }
+    .multi-thumb-card .thumb-id-tag {
+      font-size: 10px;
+      font-weight: bold;
+      margin-top: 3px;
+      color: #00ffcc;
+    }
+    .multi-thumb-card.collision .thumb-id-tag {
+      color: #f1c40f;
+    }
+
     .thumb-preview-box {
       border: 1px solid var(--card-border);
       border-radius: 6px;
@@ -743,9 +815,9 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
     <!-- Right action icons -->
     <div class="toolbar-right">
-      <button class="tool-btn" style="background:#007acc; color:#fff;" onclick="openAddModal()" title="Añadir nuevo gráfico">
+      <button class="tool-btn" style="background:#007acc; color:#fff;" onclick="openAddModal()" title="Añadir gráfico(s)">
         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-        Añadir gráfico
+        Añadir gráficos
       </button>
 
       <button class="tool-btn danger" onclick="openDeleteModal()" title="Eliminar gráfico">
@@ -828,41 +900,47 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     </div>
   </div>
 
-  <!-- Modal: Añadir Gráfico -->
+  <!-- Modal: Añadir Gráfico(s) con soporte múltiple e IDs sucesivos -->
   <div class="modal-backdrop" id="addModal">
-    <div class="modal-card">
+    <div class="modal-card" style="width: 500px;">
       <div class="modal-header">
-        <span>➕ Añadir Gráfico al FPG</span>
+        <span>➕ Añadir Gráfico(s) al FPG</span>
         <button class="tool-btn" onclick="closeAddModal()">✕</button>
       </div>
       <div class="modal-body">
         <div class="prop-field">
-          <label>Seleccionar Imagen (PNG, BMP, MAP)</label>
-          <input type="file" id="addFileInput" accept="image/png,image/bmp,image/jpeg" onchange="handleImageSelected(this)" />
+          <label>Seleccionar Imagen(es) (PNG, BMP, JPG) - Permite selección múltiple</label>
+          <input type="file" id="addFileInput" accept="image/png,image/bmp,image/jpeg" multiple onchange="handleImagesSelected(this)" />
         </div>
 
-        <div class="prop-field">
-          <label>Código / Graph ID</label>
-          <input type="number" id="addCodeInput" min="1" max="9999" oninput="checkAddIdCollision()" />
+        <div class="props-grid">
+          <div class="prop-field">
+            <label>ID Inicial (Primer Gráfico)</label>
+            <input type="number" id="addCodeInput" min="1" max="9999" oninput="updateAddIds()" />
+          </div>
+          <div class="prop-field">
+            <label>Rango de IDs asignados</label>
+            <input type="text" id="addRangeBadge" readonly disabled style="font-weight:bold; color:#00ffcc;" value="-" />
+          </div>
         </div>
 
-        <div class="prop-field">
+        <div class="prop-field" id="singleDescField">
           <label>Nombre / Descripción</label>
           <input type="text" id="addDescInput" placeholder="Descripción del sprite" />
         </div>
 
-        <div class="warning-box" id="addWarningBox">
-          ⚠️ <strong>¡El ID ya existe!</strong> Si continúas, se sobrescribirá el gráfico actual con este ID.
-        </div>
+        <div class="warning-box" id="addWarningBox"></div>
 
-        <div class="thumb-preview-box" id="addPreviewBox" style="display:none;">
-          <canvas id="addPreviewCanvas"></canvas>
-          <div style="font-size:11px;" id="addPreviewInfo"></div>
+        <div id="addPreviewSection" style="display:none;">
+          <label style="font-size:10px; text-transform:uppercase; color:#888; font-weight:bold; margin-bottom:4px; display:block;">
+            Previsualización y asignación de IDs (<span id="selectedCountBadge">0</span> imágenes)
+          </label>
+          <div class="multi-thumb-grid" id="addMultiGrid"></div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeAddModal()">Cancelar</button>
-        <button class="btn" id="btnAddConfirm" onclick="confirmAddSprite()">Añadir Gráfico</button>
+        <button class="btn" id="btnAddConfirm" onclick="confirmAddSprites()">Añadir Gráficos</button>
       </div>
     </div>
   </div>
@@ -903,7 +981,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     let selectedIndex = 0;
     let viewMode = 'grid'; // 'grid' (8 por fila) o 'list'
     let currentZoom = 1;
-    let newSpriteBuffer = null;
+    let selectedNewSprites = [];
 
     // Listener de mensajes de VSCode
     window.addEventListener('message', event => {
@@ -1028,7 +1106,6 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       const s = fpgData.sprites[idx];
       if (!s) return;
 
-      // Update selections in DOM
       document.querySelectorAll('.grid-card').forEach((c, i) => {
         c.classList.toggle('selected', i === idx);
       });
@@ -1125,10 +1202,8 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       const y = Math.max(0, Math.min(s.height - 1, rawY));
 
       if (e.shiftKey) {
-        // Shift + click añade un nuevo CP
         s.controlPoints.push({ x, y });
       } else {
-        // Clic normal reubica CP0 (centro)
         if (s.controlPoints.length === 0) {
           s.controlPoints.push({ x, y });
         } else {
@@ -1209,9 +1284,8 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       vscode.postMessage({ type: 'newFile', bpp: 32 });
     }
 
-    // Modal Añadir Gráfico
+    // Modal Añadir Gráfico(s)
     function openAddModal() {
-      // Sugerir el siguiente ID libre
       let nextId = 1;
       if (fpgData.sprites.length > 0) {
         const maxId = Math.max(...fpgData.sprites.map(s => s.code));
@@ -1221,8 +1295,10 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.getElementById('addDescInput').value = '';
       document.getElementById('addFileInput').value = '';
       document.getElementById('addWarningBox').style.display = 'none';
-      document.getElementById('addPreviewBox').style.display = 'none';
-      newSpriteBuffer = null;
+      document.getElementById('addPreviewSection').style.display = 'none';
+      document.getElementById('addRangeBadge').value = '-';
+      document.getElementById('singleDescField').style.display = 'flex';
+      selectedNewSprites = [];
       document.getElementById('addModal').classList.add('active');
     }
 
@@ -1230,71 +1306,134 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.getElementById('addModal').classList.remove('active');
     }
 
-    function checkAddIdCollision() {
-      const val = parseInt(document.getElementById('addCodeInput').value, 10);
-      const exists = fpgData.sprites.some(s => s.code === val);
-      document.getElementById('addWarningBox').style.display = exists ? 'block' : 'none';
-    }
+    async function handleImagesSelected(input) {
+      const files = Array.from(input.files || []);
+      if (files.length === 0) return;
 
-    function handleImageSelected(input) {
-      const file = input.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = evt => {
-        const img = new Image();
-        img.onload = () => {
-          const cvs = document.createElement('canvas');
-          cvs.width = img.width;
-          cvs.height = img.height;
-          const ctx = cvs.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const imgData = ctx.getImageData(0, 0, img.width, img.height);
+      // Orden natural numérico por nombre de archivo (ej. 1.png, 2.png, 10.png)
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
-          newSpriteBuffer = {
-            width: img.width,
-            height: img.height,
-            filename: file.name,
-            rgbaData: Array.from(imgData.data)
+      selectedNewSprites = [];
+      const promises = files.map(file => {
+        return new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = evt => {
+            const img = new Image();
+            img.onload = () => {
+              const cvs = document.createElement('canvas');
+              cvs.width = img.width;
+              cvs.height = img.height;
+              const ctx = cvs.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              const imgData = ctx.getImageData(0, 0, img.width, img.height);
+              resolve({
+                filename: file.name,
+                defaultDesc: file.name.replace(/\.[^/.]+$/, ''),
+                width: img.width,
+                height: img.height,
+                rgbaData: Array.from(imgData.data),
+                dataUrl: evt.target.result
+              });
+            };
+            img.src = evt.target.result;
           };
+          reader.readAsDataURL(file);
+        });
+      });
 
-          // Render preview in modal
-          const prevCanvas = document.getElementById('addPreviewCanvas');
-          prevCanvas.width = img.width;
-          prevCanvas.height = img.height;
-          const prevCtx = prevCanvas.getContext('2d');
-          prevCtx.drawImage(img, 0, 0);
+      selectedNewSprites = await Promise.all(promises);
 
-          document.getElementById('addPreviewInfo').innerText = file.name + ' (' + img.width + ' × ' + img.height + ' px)';
-          document.getElementById('addPreviewBox').style.display = 'flex';
-          if (!document.getElementById('addDescInput').value) {
-            document.getElementById('addDescInput').value = file.name.replace(/\\.[^/.]+$/, '');
-          }
-        };
-        img.src = evt.target.result;
-      };
-      reader.readAsDataURL(file);
+      document.getElementById('selectedCountBadge').innerText = selectedNewSprites.length;
+      if (selectedNewSprites.length === 1) {
+        document.getElementById('singleDescField').style.display = 'flex';
+        document.getElementById('addDescInput').value = selectedNewSprites[0].defaultDesc;
+      } else {
+        document.getElementById('singleDescField').style.display = 'none';
+      }
+
+      updateAddIds();
     }
 
-    function confirmAddSprite() {
-      if (!newSpriteBuffer) {
-        alert('Por favor, selecciona una imagen primero.');
+    function updateAddIds() {
+      const startId = parseInt(document.getElementById('addCodeInput').value, 10);
+      const count = selectedNewSprites.length;
+
+      if (isNaN(startId) || startId <= 0 || count === 0) {
+        document.getElementById('addRangeBadge').value = count > 0 ? '(' + count + ' gráficos)' : '-';
+        document.getElementById('addWarningBox').style.display = 'none';
         return;
       }
-      const code = parseInt(document.getElementById('addCodeInput').value, 10);
-      if (isNaN(code) || code <= 0) {
-        alert('Introduce un ID de gráfico válido mayor que 0.');
+
+      const endId = startId + count - 1;
+      document.getElementById('addRangeBadge').value = count === 1 ? '#' + startId : '#' + startId + ' ... #' + endId + ' (' + count + ' gráficos)';
+
+      // Render grid de thumbnails con sus IDs sucesivos
+      const grid = document.getElementById('addMultiGrid');
+      grid.innerHTML = '';
+
+      const collisions = [];
+
+      selectedNewSprites.forEach((item, idx) => {
+        const assignedId = startId + idx;
+        const exists = fpgData.sprites.some(s => s.code === assignedId);
+        if (exists) collisions.push(assignedId);
+
+        const card = document.createElement('div');
+        card.className = 'multi-thumb-card' + (exists ? ' collision' : '');
+        card.title = item.filename + ' (' + item.width + 'x' + item.height + 'px) -> ID #' + assignedId + (exists ? ' [SOBREESCRIBE]' : '');
+
+        const canvas = document.createElement('canvas');
+        canvas.width = item.width;
+        canvas.height = item.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = new ImageData(new Uint8ClampedArray(item.rgbaData), item.width, item.height);
+        ctx.putImageData(imgData, 0, 0);
+
+        const idTag = document.createElement('div');
+        idTag.className = 'thumb-id-tag';
+        idTag.innerText = '#' + assignedId + (exists ? ' ⚠️' : '');
+
+        card.appendChild(canvas);
+        card.appendChild(idTag);
+        grid.appendChild(card);
+      });
+
+      document.getElementById('addPreviewSection').style.display = 'block';
+
+      const warningBox = document.getElementById('addWarningBox');
+      if (collisions.length > 0) {
+        warningBox.innerHTML = '⚠️ <strong>¡Atención!</strong> ' + (collisions.length === 1 ? 'El ID #' + collisions[0] + ' ya existe' : 'Los IDs ' + collisions.map(c => '#' + c).join(', ') + ' ya existen') + ' en el FPG y se sobrescribirá' + (collisions.length > 1 ? 'n' : '') + '.';
+        warningBox.style.display = 'block';
+      } else {
+        warningBox.style.display = 'none';
+      }
+    }
+
+    function confirmAddSprites() {
+      if (selectedNewSprites.length === 0) {
+        alert('Por favor, selecciona al menos una imagen.');
         return;
       }
-      const desc = document.getElementById('addDescInput').value || ('Sprite ' + code);
+      const startId = parseInt(document.getElementById('addCodeInput').value, 10);
+      if (isNaN(startId) || startId <= 0) {
+        alert('Introduce un ID inicial válido mayor que 0.');
+        return;
+      }
+
+      const customDesc = document.getElementById('addDescInput').value.trim();
+
+      const spritesToSend = selectedNewSprites.map((item, idx) => ({
+        code: startId + idx,
+        description: selectedNewSprites.length === 1 && customDesc ? customDesc : item.defaultDesc,
+        filename: item.filename,
+        width: item.width,
+        height: item.height,
+        rgbaData: item.rgbaData
+      }));
 
       vscode.postMessage({
-        type: 'addSprite',
-        code,
-        description: desc,
-        filename: newSpriteBuffer.filename,
-        width: newSpriteBuffer.width,
-        height: newSpriteBuffer.height,
-        rgbaData: newSpriteBuffer.rgbaData
+        type: 'addSprites',
+        sprites: spritesToSend
       });
 
       closeAddModal();
@@ -1311,7 +1450,6 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         return;
       }
 
-      // Si hay un sprite seleccionado, pre-rellenar el ID
       if (fpgData.sprites[selectedIndex]) {
         const s = fpgData.sprites[selectedIndex];
         input.value = s.code;
@@ -1329,7 +1467,6 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.getElementById('deleteModal').classList.remove('active');
     }
 
-    // Vista previa dinámica en tiempo real al teclear el ID a eliminar
     function checkDeletePreview(val) {
       const code = parseInt(val, 10);
       const prevBox = document.getElementById('deletePreviewBox');
