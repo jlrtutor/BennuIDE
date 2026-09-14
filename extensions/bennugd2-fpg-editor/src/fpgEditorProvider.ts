@@ -27,7 +27,19 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
   private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<FpgDocument>>();
   public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  private _lastImageFolderUri?: vscode.Uri;
+  private _lastFpgFolderUri?: vscode.Uri;
+
+  constructor(private readonly context: vscode.ExtensionContext) {
+    const savedImg = this.context.globalState.get<string>('fpgLastImageFolder');
+    if (savedImg) {
+      this._lastImageFolderUri = vscode.Uri.file(savedImg);
+    }
+    const savedFpg = this.context.globalState.get<string>('fpgLastFpgFolder');
+    if (savedFpg) {
+      this._lastFpgFolderUri = vscode.Uri.file(savedFpg);
+    }
+  }
 
   public static register(context: vscode.ExtensionContext): vscode.Disposable {
     const provider = new FpgEditorProvider(context);
@@ -109,12 +121,66 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         }
 
         case 'openFile': {
+          let defaultUri = this._lastFpgFolderUri;
+          if (!defaultUri && document.uri.scheme === 'file') {
+            defaultUri = vscode.Uri.file(path.dirname(document.uri.fsPath));
+          }
           const selected = await vscode.window.showOpenDialog({
             filters: { 'BennuGD FPG': ['fpg', 'map', 'FPG', 'MAP'] },
-            canSelectMany: false
+            canSelectMany: false,
+            defaultUri
           });
           if (selected && selected[0]) {
+            this._lastFpgFolderUri = vscode.Uri.file(path.dirname(selected[0].fsPath));
+            await this.context.globalState.update('fpgLastFpgFolder', this._lastFpgFolderUri.fsPath);
             await vscode.commands.executeCommand('vscode.openWith', selected[0], FpgEditorProvider.viewType);
+          }
+          break;
+        }
+
+        case 'selectImages': {
+          let defaultUri = this._lastImageFolderUri;
+          if (!defaultUri && document.uri.scheme === 'file') {
+            defaultUri = vscode.Uri.file(path.dirname(document.uri.fsPath));
+          }
+          const selectedUris = await vscode.window.showOpenDialog({
+            canSelectMany: true,
+            canSelectFiles: true,
+            canSelectFolders: false,
+            openLabel: 'Seleccionar Gráficos',
+            filters: {
+              'Imágenes soportadas (*.png, *.bmp, *.jpg)': ['png', 'bmp', 'jpg', 'jpeg', 'PNG', 'BMP', 'JPG', 'JPEG']
+            },
+            defaultUri
+          });
+
+          if (selectedUris && selectedUris.length > 0) {
+            this._lastImageFolderUri = vscode.Uri.file(path.dirname(selectedUris[0].fsPath));
+            await this.context.globalState.update('fpgLastImageFolder', this._lastImageFolderUri.fsPath);
+
+            const filesData: { filename: string; dataUrl: string }[] = [];
+            for (const uri of selectedUris) {
+              try {
+                const fileBytes = await vscode.workspace.fs.readFile(uri);
+                const base64 = Buffer.from(fileBytes).toString('base64');
+                const ext = path.extname(uri.fsPath).toLowerCase();
+                let mime = 'image/png';
+                if (ext === '.bmp') mime = 'image/bmp';
+                else if (ext === '.jpg' || ext === '.jpeg') mime = 'image/jpeg';
+
+                filesData.push({
+                  filename: path.basename(uri.fsPath),
+                  dataUrl: `data:${mime};base64,${base64}`
+                });
+              } catch (e) {
+                console.error('Error al leer imagen:', uri.fsPath, e);
+              }
+            }
+
+            webviewPanel.webview.postMessage({
+              type: 'imagesLoadedFromDisk',
+              files: filesData
+            });
           }
           break;
         }
@@ -910,7 +976,15 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       <div class="modal-body">
         <div class="prop-field">
           <label>Seleccionar Imagen(es) (PNG, BMP, JPG) - Permite selección múltiple</label>
-          <input type="file" id="addFileInput" accept="image/png,image/bmp,image/jpeg" multiple onchange="handleImagesSelected(this)" />
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button type="button" class="btn btn-secondary" onclick="triggerSelectImages()" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:7px 10px; font-weight:600;">
+              📁 Examinar imágenes en disco...
+            </button>
+            <input type="file" id="addFileInput" accept="image/png,image/bmp,image/jpeg" multiple onchange="handleImagesSelected(this)" style="display:none;" />
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('addFileInput').click()" style="padding:7px 10px;" title="Seleccionar archivos mediante diálogo alternativo">
+              🌐
+            </button>
+          </div>
         </div>
 
         <div class="props-grid">
@@ -996,6 +1070,8 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         } else {
           clearDetail();
         }
+      } else if (msg.type === 'imagesLoadedFromDisk') {
+        loadImagesFromDataUrls(msg.files);
       }
     });
 
@@ -1284,6 +1360,10 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       vscode.postMessage({ type: 'newFile', bpp: 32 });
     }
 
+    function triggerSelectImages() {
+      vscode.postMessage({ type: 'selectImages' });
+    }
+
     // Modal Añadir Gráfico(s)
     function openAddModal() {
       let nextId = 1;
@@ -1300,44 +1380,40 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.getElementById('singleDescField').style.display = 'flex';
       selectedNewSprites = [];
       document.getElementById('addModal').classList.add('active');
+      triggerSelectImages();
     }
 
     function closeAddModal() {
       document.getElementById('addModal').classList.remove('active');
     }
 
-    async function handleImagesSelected(input) {
-      const files = Array.from(input.files || []);
-      if (files.length === 0) return;
+    async function loadImagesFromDataUrls(files) {
+      if (!files || files.length === 0) return;
 
       // Orden natural numérico por nombre de archivo (ej. 1.png, 2.png, 10.png)
-      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      files.sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' }));
 
       selectedNewSprites = [];
       const promises = files.map(file => {
         return new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = evt => {
-            const img = new Image();
-            img.onload = () => {
-              const cvs = document.createElement('canvas');
-              cvs.width = img.width;
-              cvs.height = img.height;
-              const ctx = cvs.getContext('2d');
-              ctx.drawImage(img, 0, 0);
-              const imgData = ctx.getImageData(0, 0, img.width, img.height);
-              resolve({
-                filename: file.name,
-                defaultDesc: file.name.replace(/\.[^/.]+$/, ''),
-                width: img.width,
-                height: img.height,
-                rgbaData: Array.from(imgData.data),
-                dataUrl: evt.target.result
-              });
-            };
-            img.src = evt.target.result;
+          const img = new Image();
+          img.onload = () => {
+            const cvs = document.createElement('canvas');
+            cvs.width = img.width;
+            cvs.height = img.height;
+            const ctx = cvs.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, img.width, img.height);
+            resolve({
+              filename: file.filename,
+              defaultDesc: file.filename.replace(/\.[^/.]+$/, ''),
+              width: img.width,
+              height: img.height,
+              rgbaData: Array.from(imgData.data),
+              dataUrl: file.dataUrl
+            });
           };
-          reader.readAsDataURL(file);
+          img.src = file.dataUrl;
         });
       });
 
@@ -1352,6 +1428,28 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       }
 
       updateAddIds();
+      document.getElementById('addModal').classList.add('active');
+    }
+
+    async function handleImagesSelected(input) {
+      const files = Array.from(input.files || []);
+      if (files.length === 0) return;
+
+      const fileDataPromises = files.map(file => {
+        return new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onload = evt => {
+            resolve({
+              filename: file.name,
+              dataUrl: evt.target.result
+            });
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const loadedFiles = await Promise.all(fileDataPromises);
+      await loadImagesFromDataUrls(loadedFiles);
     }
 
     function updateAddIds() {
