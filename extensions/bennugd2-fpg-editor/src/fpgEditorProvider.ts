@@ -41,7 +41,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
   async openCustomDocument(
     uri: vscode.Uri,
-    openContext: vscode.CustomDocumentOpenContext,
+    _openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken
   ): Promise<FpgDocument> {
     try {
@@ -65,12 +65,12 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       ]
     };
 
-    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview, path.basename(document.uri.fsPath));
 
     const sendFpgData = () => {
-      // Send sprites with base64 encoded rgba or structured arrays
       const payload = {
         type: 'init',
+        filename: path.basename(document.uri.fsPath),
         bpp: document.fpg.bpp,
         sprites: document.fpg.sprites.map(s => ({
           code: s.code,
@@ -91,6 +91,55 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
           sendFpgData();
           break;
 
+        case 'save':
+          await this.saveCustomDocument(document, new vscode.CancellationTokenSource().token);
+          vscode.window.showInformationMessage(`Guardado: ${path.basename(document.uri.fsPath)}`);
+          break;
+
+        case 'saveAs': {
+          const target = await vscode.window.showSaveDialog({
+            filters: { 'BennuGD FPG': ['fpg', 'FPG'] },
+            defaultUri: document.uri
+          });
+          if (target) {
+            await this.saveCustomDocumentAs(document, target, new vscode.CancellationTokenSource().token);
+            vscode.window.showInformationMessage(`Guardado como: ${path.basename(target.fsPath)}`);
+          }
+          break;
+        }
+
+        case 'openFile': {
+          const selected = await vscode.window.showOpenDialog({
+            filters: { 'BennuGD FPG': ['fpg', 'map', 'FPG', 'MAP'] },
+            canSelectMany: false
+          });
+          if (selected && selected[0]) {
+            await vscode.commands.executeCommand('vscode.openWith', selected[0], FpgEditorProvider.viewType);
+          }
+          break;
+        }
+
+        case 'newFile': {
+          const confirm = await vscode.window.showWarningMessage(
+            '¿Crear un nuevo archivo FPG vacío? Se perderán los cambios no guardados en el archivo actual.',
+            'Crear Nuevo',
+            'Cancelar'
+          );
+          if (confirm === 'Crear Nuevo') {
+            document.fpg = {
+              bpp: message.bpp || 32,
+              sprites: []
+            };
+            this._onDidChangeCustomDocument.fire({
+              document,
+              undo: () => {},
+              redo: () => {}
+            });
+            sendFpgData();
+          }
+          break;
+        }
+
         case 'updateSprite': {
           const spriteIndex = message.index;
           if (document.fpg.sprites[spriteIndex]) {
@@ -108,30 +157,54 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         }
 
         case 'deleteSprite': {
-          const spriteIndex = message.index;
-          if (document.fpg.sprites[spriteIndex]) {
-            document.fpg.sprites.splice(spriteIndex, 1);
+          let deleteIndex = -1;
+          if (message.code !== undefined) {
+            deleteIndex = document.fpg.sprites.findIndex(s => s.code === message.code);
+          } else if (message.index !== undefined) {
+            deleteIndex = message.index;
+          }
+
+          if (deleteIndex >= 0 && document.fpg.sprites[deleteIndex]) {
+            const deletedCode = document.fpg.sprites[deleteIndex].code;
+            document.fpg.sprites.splice(deleteIndex, 1);
             this._onDidChangeCustomDocument.fire({
               document,
               undo: () => {},
               redo: () => {}
             });
             sendFpgData();
+            vscode.window.showInformationMessage(`Gráfico ID #${deletedCode} eliminado.`);
+          } else {
+            vscode.window.showErrorMessage(`No se encontró ningún gráfico con el ID solicitado.`);
           }
           break;
         }
 
         case 'addSprite': {
+          const targetCode = parseInt(message.code, 10);
+          const existingIndex = document.fpg.sprites.findIndex(s => s.code === targetCode);
+
           const newSprite: FpgSprite = {
-            code: message.code || (document.fpg.sprites.length > 0 ? Math.max(...document.fpg.sprites.map(s => s.code)) + 1 : 1),
-            description: message.description || 'Sprite',
-            filename: message.filename || 'sprite.png',
+            code: targetCode,
+            description: message.description || `Sprite ${targetCode}`,
+            filename: message.filename || `sprite_${targetCode}.png`,
             width: message.width,
             height: message.height,
             controlPoints: [{ x: Math.floor(message.width / 2), y: Math.floor(message.height / 2) }],
             rgbaData: new Uint8Array(message.rgbaData)
           };
-          document.fpg.sprites.push(newSprite);
+
+          if (existingIndex >= 0) {
+            // Overwrite existing sprite
+            document.fpg.sprites[existingIndex] = newSprite;
+            vscode.window.showInformationMessage(`Gráfico ID #${targetCode} sobrescrito.`);
+          } else {
+            // Append and sort by code
+            document.fpg.sprites.push(newSprite);
+            document.fpg.sprites.sort((a, b) => a.code - b.code);
+            vscode.window.showInformationMessage(`Nuevo gráfico ID #${targetCode} añadido.`);
+          }
+
           this._onDidChangeCustomDocument.fire({
             document,
             undo: () => {},
@@ -144,22 +217,22 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     });
   }
 
-  async saveCustomDocument(document: FpgDocument, cancellation: vscode.CancellationToken): Promise<void> {
+  async saveCustomDocument(document: FpgDocument, _cancellation: vscode.CancellationToken): Promise<void> {
     const serialized = FpgParser.serialize(document.fpg);
     await vscode.workspace.fs.writeFile(document.uri, serialized);
   }
 
-  async saveCustomDocumentAs(document: FpgDocument, targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+  async saveCustomDocumentAs(document: FpgDocument, targetResource: vscode.Uri, _cancellation: vscode.CancellationToken): Promise<void> {
     const serialized = FpgParser.serialize(document.fpg);
     await vscode.workspace.fs.writeFile(targetResource, serialized);
   }
 
-  async revertCustomDocument(document: FpgDocument, cancellation: vscode.CancellationToken): Promise<void> {
+  async revertCustomDocument(document: FpgDocument, _cancellation: vscode.CancellationToken): Promise<void> {
     const data = await vscode.workspace.fs.readFile(document.uri);
     document.fpg = FpgParser.parse(data);
   }
 
-  async backupCustomDocument(document: FpgDocument, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+  async backupCustomDocument(document: FpgDocument, context: vscode.CustomDocumentBackupContext, _cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
     const serialized = FpgParser.serialize(document.fpg);
     await vscode.workspace.fs.writeFile(context.destination, serialized);
     return {
@@ -168,9 +241,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     };
   }
 
-  private getHtmlForWebview(webview: vscode.Webview): string {
-    const mediaUri = webview.asWebviewUri(vscode.Uri.file(path.join(this.context.extensionPath, 'media')));
-
+  private getHtmlForWebview(_webview: vscode.Webview, currentFileName: string): string {
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -183,75 +254,645 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       --fg: var(--vscode-editor-foreground, #d4d4d4);
       --card-bg: var(--vscode-editorWidget-background, #252526);
       --card-border: var(--vscode-widget-border, #3c3c3c);
+      --toolbar-bg: var(--vscode-editorGroupHeader-tabsBackground, #2d2d2d);
       --accent: var(--vscode-button-background, #007acc);
       --accent-hover: var(--vscode-button-hoverBackground, #0062a3);
       --selection: var(--vscode-list-activeSelectionBackground, #094771);
+      --hover-bg: var(--vscode-list-hoverBackground, #2a2d2e);
+      --danger: #e05252;
+      --danger-hover: #c93b3b;
+      --warning: #f1c40f;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-    header { padding: 10px 16px; background: var(--card-bg); border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; }
-    .btn { background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background: var(--bg); color: var(--fg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; user-select: none; }
+
+    /* Top Toolbar */
+    .top-toolbar {
+      height: 48px;
+      background: var(--toolbar-bg);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .toolbar-left, .toolbar-right, .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .file-badge {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-right: 10px;
+      border-right: 1px solid var(--card-border);
+    }
+    .bpp-pill {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: #007acc;
+      color: #fff;
+      font-weight: bold;
+    }
+    .tool-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--fg);
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      transition: 0.15s;
+    }
+    .tool-btn:hover {
+      background: var(--hover-bg);
+      border-color: var(--card-border);
+    }
+    .tool-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .tool-btn.danger:hover {
+      background: var(--danger);
+      color: #fff;
+    }
+    .tool-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+    .divider {
+      width: 1px;
+      height: 24px;
+      background: var(--card-border);
+      margin: 0 4px;
+    }
+
+    /* Main Container (Split 60% / 40%) */
+    .main-layout {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .left-pane {
+      width: 60%;
+      min-width: 320px;
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .right-pane {
+      width: 40%;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      background: var(--card-bg);
+      overflow-y: auto;
+    }
+
+    /* Left Pane: List Header & Views */
+    .list-header {
+      padding: 8px 12px;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .search-input {
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      color: var(--fg);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      width: 180px;
+      outline: none;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+
+    .list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    /* Grid View: 8 Thumbs per row default */
+    .thumbs-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 8px;
+      align-content: start;
+    }
+    @media (max-width: 1100px) {
+      .thumbs-grid { grid-template-columns: repeat(6, 1fr); }
+    }
+    @media (max-width: 800px) {
+      .thumbs-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    .grid-card {
+      background: var(--card-bg);
+      border: 2px solid transparent;
+      border-radius: 6px;
+      padding: 4px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.15s;
+    }
+    .grid-card:hover {
+      background: var(--hover-bg);
+      border-color: var(--card-border);
+    }
+    .grid-card.selected {
+      border-color: var(--accent);
+      background: var(--selection);
+    }
+    .grid-card canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 12px 12px;
+      border-radius: 4px;
+    }
+    .grid-card .id-label {
+      font-size: 11px;
+      font-weight: bold;
+      margin-top: 4px;
+      color: var(--fg);
+    }
+
+    /* Table / List View */
+    .list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .list-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: var(--toolbar-bg);
+      border-bottom: 1px solid var(--card-border);
+      color: #999;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .list-table td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--card-border);
+      vertical-align: middle;
+    }
+    .list-table tr {
+      cursor: pointer;
+      transition: 0.1s;
+    }
+    .list-table tr:hover {
+      background: var(--hover-bg);
+    }
+    .list-table tr.selected {
+      background: var(--selection);
+      font-weight: 600;
+    }
+    .list-table canvas {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 8px 8px;
+      border-radius: 4px;
+      display: block;
+    }
+
+    /* Right Pane: Detail & Zoom View */
+    .detail-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--toolbar-bg);
+    }
+    .zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .zoom-select {
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      color: var(--fg);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      outline: none;
+    }
+
+    .preview-stage {
+      flex: 1;
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: auto;
+      background: #181818;
+      padding: 16px;
+    }
+    .preview-canvas-wrapper {
+      position: relative;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      background: repeating-conic-gradient(#2c2c2c 0% 25%, #1e1e1e 0% 50%) 50% / 16px 16px;
+      border: 1px solid #444;
+      display: inline-block;
+      cursor: crosshair;
+    }
+    .preview-canvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+    .coords-badge {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid #444;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+      color: #00ffcc;
+      pointer-events: none;
+    }
+
+    .props-panel {
+      padding: 14px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--card-bg);
+    }
+    .props-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .prop-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .prop-field label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #888;
+      font-weight: bold;
+    }
+    .prop-field input {
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      color: var(--fg);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .prop-field input:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+    .points-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .point-tag {
+      background: #333;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .point-tag.cp0 {
+      border-left: 3px solid #00ffcc;
+    }
+
+    /* Modal dialogs */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal-backdrop.active {
+      display: flex;
+    }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      width: 420px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalIn 0.15s ease-out;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-header {
+      padding: 12px 16px;
+      background: var(--toolbar-bg);
+      border-bottom: 1px solid var(--card-border);
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .modal-footer {
+      padding: 10px 16px;
+      background: var(--toolbar-bg);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
     .btn:hover { background: var(--accent-hover); }
-    .btn-secondary { background: var(--card-border); }
-    .main-container { flex: 1; display: flex; overflow: hidden; }
-    .sidebar { width: 320px; border-right: 1px solid var(--card-border); display: flex; flex-direction: column; background: var(--card-bg); }
-    .sprite-list { flex: 1; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; align-content: start; }
-    .sprite-card { background: var(--bg); border: 2px solid transparent; border-radius: 6px; padding: 6px; cursor: pointer; text-align: center; transition: 0.15s; }
-    .sprite-card.selected { border-color: var(--accent); background: var(--selection); }
-    .sprite-card canvas { width: 100%; height: 90px; object-fit: contain; image-rendering: pixelated; background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 16px 16px; border-radius: 4px; }
-    .sprite-card .info { font-size: 11px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .editor-pane { flex: 1; display: flex; flex-direction: column; padding: 16px; gap: 16px; overflow-y: auto; }
-    .preview-box { flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-    .preview-canvas { max-width: 90%; max-height: 90%; image-rendering: pixelated; background: repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%) 50% / 20px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); cursor: crosshair; }
-    .properties-pane { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    .field { display: flex; flex-direction: column; gap: 4px; }
-    .field label { font-size: 11px; text-transform: uppercase; color: #888; font-weight: 600; }
-    .field input { background: var(--bg); border: 1px solid var(--card-border); color: var(--fg); padding: 6px 8px; border-radius: 4px; font-size: 13px; }
-    .points-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-    .point-badge { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 4px; }
+    .btn-secondary { background: #444; }
+    .btn-secondary:hover { background: #555; }
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: var(--danger-hover); }
+
+    .warning-box {
+      background: rgba(241, 196, 15, 0.15);
+      border: 1px solid var(--warning);
+      color: #fce38a;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: none;
+    }
+    .thumb-preview-box {
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--bg);
+      margin-top: 4px;
+    }
+    .thumb-preview-box canvas {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      image-rendering: pixelated;
+      background: repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 8px 8px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div><strong>🎨 BennuGD FPG Editor</strong> <span id="fpgInfo" style="font-size:12px; color:#888; margin-left:8px;"></span></div>
-    <div style="display:flex; gap:8px;">
-      <input type="file" id="importInput" accept="image/png,image/bmp" style="display:none;" />
-      <button class="btn" onclick="document.getElementById('importInput').click()">➕ Importar PNG</button>
-      <button class="btn btn-secondary" onclick="exportSelectedPng()">💾 Exportar PNG</button>
-      <button class="btn btn-secondary" style="background:#a33;" onclick="deleteSelected()">🗑️ Eliminar</button>
-    </div>
-  </header>
 
-  <div class="main-container">
-    <div class="sidebar">
-      <div style="padding:8px 12px; border-bottom:1px solid var(--card-border); font-size:12px; font-weight:bold;">
-        SPRITES (<span id="spriteCount">0</span>)
-      </div>
-      <div class="sprite-list" id="spriteGrid"></div>
-    </div>
-
-    <div class="editor-pane">
-      <div class="preview-box">
-        <canvas id="previewCanvas" class="preview-canvas"></canvas>
+  <!-- Top Toolbar -->
+  <div class="top-toolbar">
+    <div class="toolbar-left">
+      <div class="file-badge">
+        <span>🎨 ${currentFileName}</span>
+        <span class="bpp-pill" id="bppBadge">32 BPP</span>
       </div>
 
-      <div class="properties-pane" id="propsPane">
-        <div class="field">
-          <label>Código (Graph ID)</label>
-          <input type="number" id="propCode" onchange="updateProp('code', parseInt(this.value, 10))" />
+      <div class="toolbar-group">
+        <button class="tool-btn" onclick="openNewModal()" title="Nuevo archivo FPG">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+          Nuevo
+        </button>
+
+        <button class="tool-btn" onclick="triggerOpenFile()" title="Abrir archivo .fpg">
+          <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
+          Abrir
+        </button>
+
+        <button class="tool-btn" onclick="triggerSave()" title="Guardar cambios">
+          <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+          Guardar
+        </button>
+
+        <button class="tool-btn" onclick="triggerSaveAs()" title="Guardar como...">
+          <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3zm-5.5-5.5V9h-3v3.5H8l4 4 4-4h-2.5z"/></svg>
+          Guardar como
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- View Switchers -->
+      <div class="toolbar-group">
+        <button class="tool-btn active" id="btnViewGrid" onclick="setViewMode('grid')" title="Vista en cuadrícula (8 por fila)">
+          <svg viewBox="0 0 24 24"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>
+          Cuadrícula
+        </button>
+
+        <button class="tool-btn" id="btnViewList" onclick="setViewMode('list')" title="Vista en lista detallada">
+          <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+          Lista
+        </button>
+      </div>
+    </div>
+
+    <!-- Right action icons -->
+    <div class="toolbar-right">
+      <button class="tool-btn" style="background:#007acc; color:#fff;" onclick="openAddModal()" title="Añadir nuevo gráfico">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        Añadir gráfico
+      </button>
+
+      <button class="tool-btn danger" onclick="openDeleteModal()" title="Eliminar gráfico">
+        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        Eliminar
+      </button>
+    </div>
+  </div>
+
+  <!-- Main 60% / 40% Split -->
+  <div class="main-layout">
+    <!-- Left Pane: 60% -->
+    <div class="left-pane">
+      <div class="list-header">
+        <div style="font-size:12px; font-weight:bold;">
+          GRÁFICOS (<span id="countBadge">0</span>)
         </div>
-        <div class="field">
-          <label>Descripción</label>
-          <input type="text" id="propDesc" onchange="updateProp('description', this.value)" />
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Filtrar ID o nombre..." oninput="renderList()" />
+      </div>
+
+      <div class="list-container" id="listContainer">
+        <!-- Rendered by JS: Grid or List -->
+      </div>
+    </div>
+
+    <!-- Right Pane: 40% (Detail & Preview) -->
+    <div class="right-pane">
+      <div class="detail-header">
+        <div style="font-size:12px; font-weight:bold;" id="detailTitle">DETALLE DEL GRÁFICO</div>
+        <div class="zoom-controls">
+          <span style="font-size:11px; color:#888;">Zoom:</span>
+          <select id="zoomSelect" class="zoom-select" onchange="setZoom(this.value)">
+            <option value="0.5">50%</option>
+            <option value="1" selected>100%</option>
+            <option value="2">200%</option>
+            <option value="3">300%</option>
+            <option value="4">400%</option>
+            <option value="6">600%</option>
+            <option value="8">800%</option>
+          </select>
         </div>
-        <div class="field">
-          <label>Dimensiones</label>
-          <input type="text" id="propDims" readonly disabled />
+      </div>
+
+      <div class="preview-stage" id="previewStage">
+        <div class="preview-canvas-wrapper" id="canvasWrapper">
+          <canvas id="previewCanvas" class="preview-canvas"></canvas>
         </div>
-        <div class="field">
-          <label>Puntos de Control (Haz clic en el sprite)</label>
-          <div class="points-list" id="pointsBadges"></div>
+        <div class="coords-badge" id="coordsBadge">X: 0 | Y: 0</div>
+      </div>
+
+      <div class="props-panel" id="propsPanel">
+        <div class="props-grid">
+          <div class="prop-field">
+            <label>Código (Graph ID)</label>
+            <input type="number" id="propCode" onchange="updateSelectedProp('code', parseInt(this.value, 10))" />
+          </div>
+          <div class="prop-field">
+            <label>Dimensiones</label>
+            <input type="text" id="propDims" readonly disabled />
+          </div>
         </div>
+
+        <div class="prop-field">
+          <label>Nombre / Descripción</label>
+          <input type="text" id="propDesc" onchange="updateSelectedProp('description', this.value)" />
+        </div>
+
+        <div class="prop-field">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label>Puntos de Control (Haz clic en el sprite)</label>
+            <button class="btn btn-secondary" style="font-size:10px; padding:2px 6px;" onclick="resetCenterPoint()">Centrar CP0</button>
+          </div>
+          <div class="points-list" id="pointsList"></div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+          <button class="btn btn-secondary" onclick="exportSelectedPng()">📥 Exportar PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Añadir Gráfico -->
+  <div class="modal-backdrop" id="addModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span>➕ Añadir Gráfico al FPG</span>
+        <button class="tool-btn" onclick="closeAddModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="prop-field">
+          <label>Seleccionar Imagen (PNG, BMP, MAP)</label>
+          <input type="file" id="addFileInput" accept="image/png,image/bmp,image/jpeg" onchange="handleImageSelected(this)" />
+        </div>
+
+        <div class="prop-field">
+          <label>Código / Graph ID</label>
+          <input type="number" id="addCodeInput" min="1" max="9999" oninput="checkAddIdCollision()" />
+        </div>
+
+        <div class="prop-field">
+          <label>Nombre / Descripción</label>
+          <input type="text" id="addDescInput" placeholder="Descripción del sprite" />
+        </div>
+
+        <div class="warning-box" id="addWarningBox">
+          ⚠️ <strong>¡El ID ya existe!</strong> Si continúas, se sobrescribirá el gráfico actual con este ID.
+        </div>
+
+        <div class="thumb-preview-box" id="addPreviewBox" style="display:none;">
+          <canvas id="addPreviewCanvas"></canvas>
+          <div style="font-size:11px;" id="addPreviewInfo"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAddModal()">Cancelar</button>
+        <button class="btn" id="btnAddConfirm" onclick="confirmAddSprite()">Añadir Gráfico</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Eliminar Gráfico -->
+  <div class="modal-backdrop" id="deleteModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span>🗑️ Eliminar Gráfico</span>
+        <button class="tool-btn" onclick="closeDeleteModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px; color:#ccc;">Introduce el ID del gráfico que deseas eliminar:</p>
+        <div class="prop-field">
+          <label>Código / Graph ID a eliminar</label>
+          <input type="number" id="deleteCodeInput" placeholder="Ej: 100" oninput="checkDeletePreview(this.value)" />
+        </div>
+
+        <!-- Dynamic thumbnail preview when typing ID -->
+        <div class="thumb-preview-box" id="deletePreviewBox" style="display:none;">
+          <canvas id="deletePreviewCanvas"></canvas>
+          <div>
+            <div style="font-weight:bold; font-size:12px;" id="deletePreviewTitle"></div>
+            <div style="font-size:11px; color:#888;" id="deletePreviewMeta"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+        <button class="btn btn-danger" id="btnDeleteConfirm" onclick="confirmDeleteSprite()">Eliminar</button>
       </div>
     </div>
   </div>
@@ -260,45 +901,126 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     const vscode = acquireVsCodeApi();
     let fpgData = { bpp: 32, sprites: [] };
     let selectedIndex = 0;
+    let viewMode = 'grid'; // 'grid' (8 por fila) o 'list'
+    let currentZoom = 1;
+    let newSpriteBuffer = null;
 
+    // Listener de mensajes de VSCode
     window.addEventListener('message', event => {
       const msg = event.data;
       if (msg.type === 'init') {
         fpgData = msg;
-        document.getElementById('fpgInfo').innerText = fpgData.bpp + ' bpp';
-        document.getElementById('spriteCount').innerText = fpgData.sprites.length;
-        renderGrid();
+        document.getElementById('bppBadge').innerText = fpgData.bpp + ' BPP';
+        document.getElementById('countBadge').innerText = fpgData.sprites.length;
+        renderList();
         if (fpgData.sprites.length > 0) {
           selectSprite(Math.min(selectedIndex, fpgData.sprites.length - 1));
+        } else {
+          clearDetail();
         }
       }
     });
 
     vscode.postMessage({ type: 'ready' });
 
-    function renderGrid() {
-      const grid = document.getElementById('spriteGrid');
-      grid.innerHTML = '';
-      fpgData.sprites.forEach((s, idx) => {
-        const card = document.createElement('div');
-        card.className = 'sprite-card ' + (idx === selectedIndex ? 'selected' : '');
-        card.onclick = () => selectSprite(idx);
+    function setViewMode(mode) {
+      viewMode = mode;
+      document.getElementById('btnViewGrid').classList.toggle('active', mode === 'grid');
+      document.getElementById('btnViewList').classList.toggle('active', mode === 'list');
+      renderList();
+    }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = s.width;
-        canvas.height = s.height;
-        const ctx = canvas.getContext('2d');
-        const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
-        ctx.putImageData(imgData, 0, 0);
+    function renderList() {
+      const container = document.getElementById('listContainer');
+      const search = (document.getElementById('searchInput').value || '').trim().toLowerCase();
 
-        const info = document.createElement('div');
-        info.className = 'info';
-        info.innerText = '#' + s.code + ' ' + (s.description || 'Sprite');
-
-        card.appendChild(canvas);
-        card.appendChild(info);
-        grid.appendChild(card);
+      const filtered = fpgData.sprites.map((s, idx) => ({ s, idx })).filter(({ s }) => {
+        if (!search) return true;
+        return s.code.toString().includes(search) || (s.description && s.description.toLowerCase().includes(search));
       });
+
+      container.innerHTML = '';
+
+      if (viewMode === 'grid') {
+        const grid = document.createElement('div');
+        grid.className = 'thumbs-grid';
+
+        filtered.forEach(({ s, idx }) => {
+          const card = document.createElement('div');
+          card.className = 'grid-card ' + (idx === selectedIndex ? 'selected' : '');
+          card.onclick = () => selectSprite(idx);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = s.width;
+          canvas.height = s.height;
+          const ctx = canvas.getContext('2d');
+          const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
+          ctx.putImageData(imgData, 0, 0);
+
+          const idLbl = document.createElement('div');
+          idLbl.className = 'id-label';
+          idLbl.innerText = '#' + s.code;
+
+          card.appendChild(canvas);
+          card.appendChild(idLbl);
+          grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
+      } else {
+        const table = document.createElement('table');
+        table.className = 'list-table';
+        table.innerHTML = \`
+          <thead>
+            <tr>
+              <th style="width:48px;">Thumb</th>
+              <th style="width:70px;">ID</th>
+              <th>Descripción</th>
+              <th style="width:100px;">Dimensiones</th>
+              <th style="width:60px;">CPs</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        \`;
+        const tbody = table.querySelector('tbody');
+
+        filtered.forEach(({ s, idx }) => {
+          const row = document.createElement('tr');
+          row.className = (idx === selectedIndex ? 'selected' : '');
+          row.onclick = () => selectSprite(idx);
+
+          const tdThumb = document.createElement('td');
+          const canvas = document.createElement('canvas');
+          canvas.width = s.width;
+          canvas.height = s.height;
+          const ctx = canvas.getContext('2d');
+          const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
+          ctx.putImageData(imgData, 0, 0);
+          tdThumb.appendChild(canvas);
+
+          const tdId = document.createElement('td');
+          tdId.innerText = '#' + s.code;
+          tdId.style.fontWeight = 'bold';
+
+          const tdDesc = document.createElement('td');
+          tdDesc.innerText = s.description || '-';
+
+          const tdDims = document.createElement('td');
+          tdDims.innerText = s.width + ' × ' + s.height;
+
+          const tdCps = document.createElement('td');
+          tdCps.innerText = s.controlPoints ? s.controlPoints.length : 0;
+
+          row.appendChild(tdThumb);
+          row.appendChild(tdId);
+          row.appendChild(tdDesc);
+          row.appendChild(tdDims);
+          row.appendChild(tdCps);
+          tbody.appendChild(row);
+        });
+
+        container.appendChild(table);
+      }
     }
 
     function selectSprite(idx) {
@@ -306,16 +1028,31 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       const s = fpgData.sprites[idx];
       if (!s) return;
 
-      document.querySelectorAll('.sprite-card').forEach((c, i) => {
+      // Update selections in DOM
+      document.querySelectorAll('.grid-card').forEach((c, i) => {
         c.classList.toggle('selected', i === idx);
       });
+      document.querySelectorAll('.list-table tr').forEach((r, i) => {
+        if (i > 0) r.classList.toggle('selected', (i - 1) === idx);
+      });
 
+      document.getElementById('detailTitle').innerText = 'GRÁFICO #' + s.code + ' (' + (s.description || 'Sin título') + ')';
       document.getElementById('propCode').value = s.code;
-      document.getElementById('propDesc').value = s.description;
-      document.getElementById('propDims').value = s.width + ' x ' + s.height + ' px';
+      document.getElementById('propDesc').value = s.description || '';
+      document.getElementById('propDims').value = s.width + ' × ' + s.height + ' px';
 
       renderPreview(s);
-      renderPointsBadges(s);
+      renderPointsList(s);
+    }
+
+    function clearDetail() {
+      document.getElementById('detailTitle').innerText = 'SIN GRÁFICOS';
+      document.getElementById('propCode').value = '';
+      document.getElementById('propDesc').value = '';
+      document.getElementById('propDims').value = '';
+      const canvas = document.getElementById('previewCanvas');
+      canvas.width = 1; canvas.height = 1;
+      document.getElementById('pointsList').innerHTML = '';
     }
 
     function renderPreview(s) {
@@ -329,40 +1066,74 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       // Draw Control Points
       s.controlPoints.forEach((pt, i) => {
         ctx.fillStyle = i === 0 ? '#00ffcc' : '#ff0055';
-        ctx.strokeStyle = '#000000';
+        ctx.strokeStyle = '#000';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+        ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('CP' + i, pt.x + 6, pt.y + 4);
       });
+
+      applyZoom();
     }
 
-    function renderPointsBadges(s) {
-      const container = document.getElementById('pointsBadges');
-      container.innerHTML = '';
-      s.controlPoints.forEach((pt, i) => {
-        const badge = document.createElement('div');
-        badge.className = 'point-badge';
-        badge.innerText = 'CP' + i + ': (' + pt.x + ', ' + pt.y + ')';
-        container.appendChild(badge);
-      });
+    function setZoom(val) {
+      currentZoom = parseFloat(val);
+      applyZoom();
     }
 
-    // Interactive point placement on canvas click
-    document.getElementById('previewCanvas').addEventListener('click', e => {
+    function applyZoom() {
+      const wrapper = document.getElementById('canvasWrapper');
       const s = fpgData.sprites[selectedIndex];
       if (!s) return;
-      const rect = e.target.getBoundingClientRect();
-      const scaleX = s.width / rect.width;
-      const scaleY = s.height / rect.height;
-      const px = Math.round((e.clientX - rect.left) * scaleX);
-      const py = Math.round((e.clientY - rect.top) * scaleY);
+      wrapper.style.width = (s.width * currentZoom) + 'px';
+      wrapper.style.height = (s.height * currentZoom) + 'px';
+      const canvas = document.getElementById('previewCanvas');
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+    }
 
-      if (s.controlPoints.length === 0) {
-        s.controlPoints.push({ x: px, y: py });
+    // Tracking coordenadas X,Y en tiempo real
+    const previewStage = document.getElementById('previewStage');
+    const canvasWrapper = document.getElementById('canvasWrapper');
+    const coordsBadge = document.getElementById('coordsBadge');
+
+    canvasWrapper.addEventListener('mousemove', e => {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      const rect = canvasWrapper.getBoundingClientRect();
+      const rawX = Math.floor((e.clientX - rect.left) / currentZoom);
+      const rawY = Math.floor((e.clientY - rect.top) / currentZoom);
+      const x = Math.max(0, Math.min(s.width - 1, rawX));
+      const y = Math.max(0, Math.min(s.height - 1, rawY));
+      coordsBadge.innerText = 'X: ' + x + ' | Y: ' + y;
+    });
+
+    // Clic en canvas para situar o añadir punto de control
+    canvasWrapper.addEventListener('click', e => {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      const rect = canvasWrapper.getBoundingClientRect();
+      const rawX = Math.floor((e.clientX - rect.left) / currentZoom);
+      const rawY = Math.floor((e.clientY - rect.top) / currentZoom);
+      const x = Math.max(0, Math.min(s.width - 1, rawX));
+      const y = Math.max(0, Math.min(s.height - 1, rawY));
+
+      if (e.shiftKey) {
+        // Shift + click añade un nuevo CP
+        s.controlPoints.push({ x, y });
       } else {
-        s.controlPoints[0] = { x: px, y: py }; // Center point CP0
+        // Clic normal reubica CP0 (centro)
+        if (s.controlPoints.length === 0) {
+          s.controlPoints.push({ x, y });
+        } else {
+          s.controlPoints[0] = { x, y };
+        }
       }
 
       vscode.postMessage({
@@ -372,10 +1143,52 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       });
 
       renderPreview(s);
-      renderPointsBadges(s);
+      renderPointsList(s);
     });
 
-    function updateProp(key, value) {
+    function resetCenterPoint() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      const cx = Math.floor(s.width / 2);
+      const cy = Math.floor(s.height / 2);
+      if (s.controlPoints.length === 0) s.controlPoints.push({ x: cx, y: cy });
+      else s.controlPoints[0] = { x: cx, y: cy };
+
+      vscode.postMessage({
+        type: 'updateSprite',
+        index: selectedIndex,
+        controlPoints: s.controlPoints
+      });
+      renderPreview(s);
+      renderPointsList(s);
+    }
+
+    function renderPointsList(s) {
+      const container = document.getElementById('pointsList');
+      container.innerHTML = '';
+      s.controlPoints.forEach((pt, i) => {
+        const tag = document.createElement('div');
+        tag.className = 'point-tag ' + (i === 0 ? 'cp0' : '');
+        tag.innerText = 'CP' + i + ': (' + pt.x + ', ' + pt.y + ')';
+        if (i > 0) {
+          const delBtn = document.createElement('span');
+          delBtn.innerText = '✕';
+          delBtn.style.cursor = 'pointer';
+          delBtn.style.marginLeft = '4px';
+          delBtn.onclick = (e) => {
+            e.stopPropagation();
+            s.controlPoints.splice(i, 1);
+            vscode.postMessage({ type: 'updateSprite', index: selectedIndex, controlPoints: s.controlPoints });
+            renderPreview(s);
+            renderPointsList(s);
+          };
+          tag.appendChild(delBtn);
+        }
+        container.appendChild(tag);
+      });
+    }
+
+    function updateSelectedProp(key, value) {
       const s = fpgData.sprites[selectedIndex];
       if (!s) return;
       s[key] = value;
@@ -384,20 +1197,47 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         index: selectedIndex,
         [key]: value
       });
-      renderGrid();
+      renderList();
     }
 
-    function deleteSelected() {
-      if (fpgData.sprites.length === 0) return;
-      vscode.postMessage({
-        type: 'deleteSprite',
-        index: selectedIndex
-      });
+    // Toolbar Actions
+    function triggerSave() { vscode.postMessage({ type: 'save' }); }
+    function triggerSaveAs() { vscode.postMessage({ type: 'saveAs' }); }
+    function triggerOpenFile() { vscode.postMessage({ type: 'openFile' }); }
+
+    function openNewModal() {
+      vscode.postMessage({ type: 'newFile', bpp: 32 });
     }
 
-    // Import PNG
-    document.getElementById('importInput').addEventListener('change', e => {
-      const file = e.target.files[0];
+    // Modal Añadir Gráfico
+    function openAddModal() {
+      // Sugerir el siguiente ID libre
+      let nextId = 1;
+      if (fpgData.sprites.length > 0) {
+        const maxId = Math.max(...fpgData.sprites.map(s => s.code));
+        nextId = maxId + 1;
+      }
+      document.getElementById('addCodeInput').value = nextId;
+      document.getElementById('addDescInput').value = '';
+      document.getElementById('addFileInput').value = '';
+      document.getElementById('addWarningBox').style.display = 'none';
+      document.getElementById('addPreviewBox').style.display = 'none';
+      newSpriteBuffer = null;
+      document.getElementById('addModal').classList.add('active');
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.remove('active');
+    }
+
+    function checkAddIdCollision() {
+      const val = parseInt(document.getElementById('addCodeInput').value, 10);
+      const exists = fpgData.sprites.some(s => s.code === val);
+      document.getElementById('addWarningBox').style.display = exists ? 'block' : 'none';
+    }
+
+    function handleImageSelected(input) {
+      const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = evt => {
@@ -410,19 +1250,119 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
           ctx.drawImage(img, 0, 0);
           const imgData = ctx.getImageData(0, 0, img.width, img.height);
 
-          vscode.postMessage({
-            type: 'addSprite',
+          newSpriteBuffer = {
             width: img.width,
             height: img.height,
             filename: file.name,
-            description: file.name.replace(/\\.[^/.]+$/, ''),
             rgbaData: Array.from(imgData.data)
-          });
+          };
+
+          // Render preview in modal
+          const prevCanvas = document.getElementById('addPreviewCanvas');
+          prevCanvas.width = img.width;
+          prevCanvas.height = img.height;
+          const prevCtx = prevCanvas.getContext('2d');
+          prevCtx.drawImage(img, 0, 0);
+
+          document.getElementById('addPreviewInfo').innerText = file.name + ' (' + img.width + ' × ' + img.height + ' px)';
+          document.getElementById('addPreviewBox').style.display = 'flex';
+          if (!document.getElementById('addDescInput').value) {
+            document.getElementById('addDescInput').value = file.name.replace(/\\.[^/.]+$/, '');
+          }
         };
         img.src = evt.target.result;
       };
       reader.readAsDataURL(file);
-    });
+    }
+
+    function confirmAddSprite() {
+      if (!newSpriteBuffer) {
+        alert('Por favor, selecciona una imagen primero.');
+        return;
+      }
+      const code = parseInt(document.getElementById('addCodeInput').value, 10);
+      if (isNaN(code) || code <= 0) {
+        alert('Introduce un ID de gráfico válido mayor que 0.');
+        return;
+      }
+      const desc = document.getElementById('addDescInput').value || ('Sprite ' + code);
+
+      vscode.postMessage({
+        type: 'addSprite',
+        code,
+        description: desc,
+        filename: newSpriteBuffer.filename,
+        width: newSpriteBuffer.width,
+        height: newSpriteBuffer.height,
+        rgbaData: newSpriteBuffer.rgbaData
+      });
+
+      closeAddModal();
+    }
+
+    // Modal Eliminar Gráfico
+    function openDeleteModal() {
+      const deleteModal = document.getElementById('deleteModal');
+      const input = document.getElementById('deleteCodeInput');
+      const prevBox = document.getElementById('deletePreviewBox');
+
+      if (fpgData.sprites.length === 0) {
+        alert('No hay gráficos en el archivo FPG.');
+        return;
+      }
+
+      // Si hay un sprite seleccionado, pre-rellenar el ID
+      if (fpgData.sprites[selectedIndex]) {
+        const s = fpgData.sprites[selectedIndex];
+        input.value = s.code;
+        checkDeletePreview(s.code);
+      } else {
+        input.value = '';
+        prevBox.style.display = 'none';
+      }
+
+      deleteModal.classList.add('active');
+      input.focus();
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.remove('active');
+    }
+
+    // Vista previa dinámica en tiempo real al teclear el ID a eliminar
+    function checkDeletePreview(val) {
+      const code = parseInt(val, 10);
+      const prevBox = document.getElementById('deletePreviewBox');
+      const found = fpgData.sprites.find(s => s.code === code);
+
+      if (found) {
+        const canvas = document.getElementById('deletePreviewCanvas');
+        canvas.width = found.width;
+        canvas.height = found.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = new ImageData(new Uint8ClampedArray(found.rgbaData), found.width, found.height);
+        ctx.putImageData(imgData, 0, 0);
+
+        document.getElementById('deletePreviewTitle').innerText = '#' + found.code + ' ' + (found.description || 'Sprite');
+        document.getElementById('deletePreviewMeta').innerText = found.width + ' × ' + found.height + ' px';
+        prevBox.style.display = 'flex';
+      } else {
+        prevBox.style.display = 'none';
+      }
+    }
+
+    function confirmDeleteSprite() {
+      const val = parseInt(document.getElementById('deleteCodeInput').value, 10);
+      if (isNaN(val) || val <= 0) {
+        alert('Por favor, introduce un ID válido.');
+        return;
+      }
+      vscode.postMessage({
+        type: 'deleteSprite',
+        code: val
+      });
+      closeDeleteModal();
+    }
 
     function exportSelectedPng() {
       const s = fpgData.sprites[selectedIndex];
