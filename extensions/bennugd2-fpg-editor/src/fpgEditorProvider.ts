@@ -394,12 +394,12 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       background: transparent;
       border: 1px solid transparent;
       color: var(--fg);
-      padding: 6px 10px;
+      padding: 6px 8px;
       border-radius: 4px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
       font-size: 12px;
       transition: 0.15s;
     }
@@ -685,6 +685,76 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       border-left: 3px solid #00ffcc;
     }
 
+    /* Animation Player Panel */
+    .anim-panel {
+      padding: 12px 14px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--card-bg);
+    }
+    .anim-header-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .anim-controls-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .anim-thumb-strip {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 6px 4px;
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      min-height: 52px;
+      align-items: center;
+    }
+    .anim-thumb-item {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      background: var(--card-bg);
+      border: 2px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 2px;
+      transition: 0.1s;
+    }
+    .anim-thumb-item:hover {
+      border-color: var(--card-border);
+    }
+    .anim-thumb-item.active {
+      border-color: #00ffcc;
+      background: var(--selection);
+      box-shadow: 0 0 6px rgba(0, 255, 204, 0.4);
+    }
+    .anim-thumb-item canvas {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      image-rendering: pixelated;
+    }
+    .anim-thumb-item .thumb-num {
+      font-size: 8px;
+      position: absolute;
+      bottom: 1px;
+      right: 2px;
+      color: #aaa;
+      font-weight: bold;
+    }
+
     /* Modal dialogs */
     .modal-backdrop {
       position: fixed;
@@ -844,37 +914,35 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       <div class="toolbar-group">
         <button class="tool-btn" onclick="openNewModal()" title="Nuevo archivo FPG">
           <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
-          Nuevo
         </button>
 
         <button class="tool-btn" onclick="triggerOpenFile()" title="Abrir archivo .fpg">
           <svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>
-          Abrir
         </button>
 
         <button class="tool-btn" onclick="triggerSave()" title="Guardar cambios">
           <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-          Guardar
         </button>
 
         <button class="tool-btn" onclick="triggerSaveAs()" title="Guardar como...">
           <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3zm-5.5-5.5V9h-3v3.5H8l4 4 4-4h-2.5z"/></svg>
-          Guardar como
         </button>
       </div>
 
       <div class="divider"></div>
 
-      <!-- View Switchers -->
+      <!-- View Switchers & Tools -->
       <div class="toolbar-group">
-        <button class="tool-btn active" id="btnViewGrid" onclick="setViewMode('grid')" title="Vista en cuadrícula (8 por fila)">
+        <button class="tool-btn active" id="btnViewGrid" onclick="setViewMode('grid')" title="Vista en cuadrícula">
           <svg viewBox="0 0 24 24"><path d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z"/></svg>
-          Cuadrícula
         </button>
 
         <button class="tool-btn" id="btnViewList" onclick="setViewMode('list')" title="Vista en lista detallada">
           <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
-          Lista
+        </button>
+
+        <button class="tool-btn" id="btnAnimateToolbar" onclick="toggleAnimation()" title="Animar gráficos seleccionados">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </button>
       </div>
     </div>
@@ -883,12 +951,10 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     <div class="toolbar-right">
       <button class="tool-btn" style="background:#007acc; color:#fff;" onclick="openAddModal()" title="Añadir gráfico(s)">
         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-        Añadir gráficos
       </button>
 
-      <button class="tool-btn danger" onclick="openDeleteModal()" title="Eliminar gráfico">
+      <button class="tool-btn danger" onclick="openDeleteModal()" title="Eliminar gráfico seleccionado o por ID">
         <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-        Eliminar
       </button>
     </div>
   </div>
@@ -898,10 +964,18 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     <!-- Left Pane: 60% -->
     <div class="left-pane">
       <div class="list-header">
-        <div style="font-size:12px; font-weight:bold;">
-          GRÁFICOS (<span id="countBadge">0</span>)
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="font-size:12px; font-weight:bold;">
+            GRÁFICOS (<span id="countBadge">0</span>)
+          </div>
+          <span id="selectedCountBadgeHeader" style="font-size:11px; color:#00ffcc; font-weight:600; display:none;">0 sel.</span>
         </div>
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Filtrar ID o nombre..." oninput="renderList()" />
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="btn btn-secondary" id="btnAnimHeader" onclick="toggleAnimation()" style="font-size:11px; padding:3px 8px; display:none;" title="Animar gráficos seleccionados">
+            ▶ Animar
+          </button>
+          <input type="text" id="searchInput" class="search-input" placeholder="🔍 Filtrar ID o nombre..." oninput="renderList()" />
+        </div>
       </div>
 
       <div class="list-container" id="listContainer">
@@ -962,6 +1036,52 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
           <button class="btn btn-secondary" onclick="exportSelectedPng()">📥 Exportar PNG</button>
         </div>
+      </div>
+
+      <!-- Panel de Animación -->
+      <div class="anim-panel" id="animPanel" style="display:none;">
+        <div class="anim-header-bar">
+          <span style="font-size:12px; font-weight:bold; color:#00ffcc;" id="animStatusTitle">ANIMACIÓN EN CURSO</span>
+          <span style="font-size:11px; color:#aaa;" id="animFrameText">1 / 1</span>
+        </div>
+
+        <div class="anim-controls-row">
+          <button class="btn" id="btnAnimPlayPause" onclick="toggleAnimPlayPause()" style="padding:4px 10px; font-size:11px;">⏸ Pausar</button>
+          <button class="btn btn-secondary" onclick="stepAnimPrev()" style="padding:4px 8px; font-size:11px;" title="Fotograma anterior">⏮</button>
+          <button class="btn btn-secondary" onclick="stepAnimNext()" style="padding:4px 8px; font-size:11px;" title="Fotograma siguiente">⏭</button>
+          <button class="btn btn-secondary" onclick="stopAnimation()" style="padding:4px 10px; font-size:11px; color:#ff7777;" title="Salir de animación">⏹ Detener</button>
+
+          <div style="display:flex; align-items:center; gap:4px; margin-left:auto;">
+            <label style="font-size:11px; color:#aaa;">Velocidad:</label>
+            <select id="animFpsSelect" class="zoom-select" onchange="setAnimFps(this.value)">
+              <option value="1">1 FPS</option>
+              <option value="2">2 FPS</option>
+              <option value="4">4 FPS</option>
+              <option value="6">6 FPS</option>
+              <option value="8">8 FPS</option>
+              <option value="10" selected>10 FPS</option>
+              <option value="12">12 FPS</option>
+              <option value="15">15 FPS</option>
+              <option value="20">20 FPS</option>
+              <option value="24">24 FPS</option>
+              <option value="30">30 FPS</option>
+              <option value="60">60 FPS</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:11px; color:#aaa;">Modo:</label>
+            <select id="animModeSelect" class="zoom-select" onchange="setAnimMode(this.value)">
+              <option value="loop">🔁 Bucle Continuo</option>
+              <option value="pingpong">🔀 Ida y Vuelta</option>
+            </select>
+          </div>
+          <span style="font-size:10px; color:#888;">Haz clic en un fotograma para saltar a él</span>
+        </div>
+
+        <div class="anim-thumb-strip" id="animThumbStrip"></div>
       </div>
     </div>
   </div>
@@ -1053,9 +1173,21 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     const vscode = acquireVsCodeApi();
     let fpgData = { bpp: 32, sprites: [] };
     let selectedIndex = 0;
+    let selectedIndices = new Set([0]);
+    let lastClickedIndex = 0;
     let viewMode = 'grid'; // 'grid' (8 por fila) o 'list'
     let currentZoom = 1;
     let selectedNewSprites = [];
+
+    // Estado de animación
+    let isAnimating = false;
+    let animTimer = null;
+    let animFps = 10;
+    let animMode = 'loop'; // 'loop' o 'pingpong'
+    let animDirection = 1;
+    let animCurrentStep = 0;
+    let animFrames = [];
+    let animIsPaused = false;
 
     // Listener de mensajes de VSCode
     window.addEventListener('message', event => {
@@ -1064,6 +1196,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         fpgData = msg;
         document.getElementById('bppBadge').innerText = fpgData.bpp + ' BPP';
         document.getElementById('countBadge').innerText = fpgData.sprites.length;
+        selectedIndices = new Set(fpgData.sprites.length > 0 ? [Math.min(selectedIndex, fpgData.sprites.length - 1)] : []);
         renderList();
         if (fpgData.sprites.length > 0) {
           selectSprite(Math.min(selectedIndex, fpgData.sprites.length - 1));
@@ -1101,8 +1234,9 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
         filtered.forEach(({ s, idx }) => {
           const card = document.createElement('div');
-          card.className = 'grid-card ' + (idx === selectedIndex ? 'selected' : '');
-          card.onclick = () => selectSprite(idx);
+          card.className = 'grid-card ' + (selectedIndices.has(idx) ? 'selected' : '');
+          card.dataset.index = idx;
+          card.onclick = (e) => handleItemClick(idx, e);
 
           const canvas = document.createElement('canvas');
           canvas.width = s.width;
@@ -1113,7 +1247,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
           const idLbl = document.createElement('div');
           idLbl.className = 'id-label';
-          idLbl.innerText = '#' + s.code;
+          idLbl.innerText = s.code; // Sin '#'
 
           card.appendChild(canvas);
           card.appendChild(idLbl);
@@ -1140,8 +1274,9 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
         filtered.forEach(({ s, idx }) => {
           const row = document.createElement('tr');
-          row.className = (idx === selectedIndex ? 'selected' : '');
-          row.onclick = () => selectSprite(idx);
+          row.className = (selectedIndices.has(idx) ? 'selected' : '');
+          row.dataset.index = idx;
+          row.onclick = (e) => handleItemClick(idx, e);
 
           const tdThumb = document.createElement('td');
           const canvas = document.createElement('canvas');
@@ -1153,7 +1288,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
           tdThumb.appendChild(canvas);
 
           const tdId = document.createElement('td');
-          tdId.innerText = '#' + s.code;
+          tdId.innerText = s.code; // Sin '#'
           tdId.style.fontWeight = 'bold';
 
           const tdDesc = document.createElement('td');
@@ -1175,6 +1310,74 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
         container.appendChild(table);
       }
+
+      updateSelectionUI();
+    }
+
+    function handleItemClick(idx, event) {
+      if (event && event.shiftKey) {
+        // Selección por rango
+        const start = Math.min(lastClickedIndex, idx);
+        const end = Math.max(lastClickedIndex, idx);
+        if (!event.ctrlKey && !event.metaKey) {
+          selectedIndices.clear();
+        }
+        for (let i = start; i <= end; i++) {
+          selectedIndices.add(i);
+        }
+      } else if (event && (event.ctrlKey || event.metaKey)) {
+        // Alternar selección múltiple
+        if (selectedIndices.has(idx)) {
+          if (selectedIndices.size > 1) {
+            selectedIndices.delete(idx);
+          }
+        } else {
+          selectedIndices.add(idx);
+        }
+        lastClickedIndex = idx;
+      } else {
+        // Selección simple
+        selectedIndices.clear();
+        selectedIndices.add(idx);
+        lastClickedIndex = idx;
+      }
+
+      selectedIndex = idx;
+      updateSelectionUI();
+
+      if (isAnimating) {
+        updateAnimationFrames();
+      } else {
+        selectSprite(idx);
+      }
+    }
+
+    function updateSelectionUI() {
+      document.querySelectorAll('.grid-card').forEach((c) => {
+        const i = parseInt(c.dataset.index, 10);
+        c.classList.toggle('selected', selectedIndices.has(i));
+      });
+      document.querySelectorAll('.list-table tbody tr').forEach((r) => {
+        const i = parseInt(r.dataset.index, 10);
+        r.classList.toggle('selected', selectedIndices.has(i));
+      });
+
+      const count = selectedIndices.size;
+      const headerBadge = document.getElementById('selectedCountBadgeHeader');
+      const animHeaderBtn = document.getElementById('btnAnimHeader');
+      const animToolbarBtn = document.getElementById('btnAnimateToolbar');
+
+      if (count > 1) {
+        headerBadge.innerText = count + ' sel.';
+        headerBadge.style.display = 'inline-block';
+        animHeaderBtn.innerText = '▶ Animar (' + count + ')';
+        animHeaderBtn.style.display = 'inline-block';
+        animToolbarBtn.title = 'Animar los ' + count + ' gráficos seleccionados';
+      } else {
+        headerBadge.style.display = 'none';
+        animHeaderBtn.style.display = 'none';
+        animToolbarBtn.title = 'Animar gráficos';
+      }
     }
 
     function selectSprite(idx) {
@@ -1182,20 +1385,226 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       const s = fpgData.sprites[idx];
       if (!s) return;
 
-      document.querySelectorAll('.grid-card').forEach((c, i) => {
-        c.classList.toggle('selected', i === idx);
-      });
-      document.querySelectorAll('.list-table tr').forEach((r, i) => {
-        if (i > 0) r.classList.toggle('selected', (i - 1) === idx);
-      });
-
-      document.getElementById('detailTitle').innerText = 'GRÁFICO #' + s.code + ' (' + (s.description || 'Sin título') + ')';
+      document.getElementById('detailTitle').innerText = 'GRÁFICO ' + s.code + ' (' + (s.description || 'Sin título') + ')';
       document.getElementById('propCode').value = s.code;
       document.getElementById('propDesc').value = s.description || '';
       document.getElementById('propDims').value = s.width + ' × ' + s.height + ' px';
 
       renderPreview(s);
       renderPointsList(s);
+    }
+
+    // --- ANIMACIÓN ---
+    function getSelectedSpritesForAnimation() {
+      if (selectedIndices.size >= 2) {
+        const sorted = Array.from(selectedIndices).sort((a, b) => {
+          const sa = fpgData.sprites[a];
+          const sb = fpgData.sprites[b];
+          if (!sa || !sb) return a - b;
+          return sa.code - sb.code;
+        });
+        return sorted.map(i => fpgData.sprites[i]).filter(Boolean);
+      } else if (fpgData.sprites.length > 0) {
+        const search = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+        return fpgData.sprites.filter(s => {
+          if (!search) return true;
+          return s.code.toString().includes(search) || (s.description && s.description.toLowerCase().includes(search));
+        });
+      }
+      return [];
+    }
+
+    function startAnimation() {
+      const frames = getSelectedSpritesForAnimation();
+      if (frames.length === 0) {
+        alert('No hay gráficos para animar.');
+        return;
+      }
+      isAnimating = true;
+      animIsPaused = false;
+      animFrames = frames;
+      animCurrentStep = 0;
+      animDirection = 1;
+
+      document.getElementById('propsPanel').style.display = 'none';
+      document.getElementById('animPanel').style.display = 'flex';
+      document.getElementById('btnAnimateToolbar').classList.add('active');
+      const animHeaderBtn = document.getElementById('btnAnimHeader');
+      if (animHeaderBtn) animHeaderBtn.classList.add('active');
+      document.getElementById('btnAnimPlayPause').innerText = '⏸ Pausar';
+      document.getElementById('detailTitle').innerText = 'ANIMACIÓN (' + animFrames.length + ' FOTOGRAMAS)';
+      document.getElementById('animStatusTitle').innerText = 'ANIMANDO ' + animFrames.length + ' FOTOGRAMAS';
+
+      renderAnimThumbStrip();
+      runAnimLoop();
+    }
+
+    function stopAnimation() {
+      isAnimating = false;
+      animIsPaused = false;
+      if (animTimer) {
+        clearTimeout(animTimer);
+        animTimer = null;
+      }
+      document.getElementById('animPanel').style.display = 'none';
+      document.getElementById('propsPanel').style.display = 'flex';
+      document.getElementById('btnAnimateToolbar').classList.remove('active');
+      const animHeaderBtn = document.getElementById('btnAnimHeader');
+      if (animHeaderBtn) animHeaderBtn.classList.remove('active');
+
+      if (fpgData.sprites[selectedIndex]) {
+        selectSprite(selectedIndex);
+      }
+    }
+
+    function toggleAnimation() {
+      if (isAnimating) {
+        stopAnimation();
+      } else {
+        startAnimation();
+      }
+    }
+
+    function toggleAnimPlayPause() {
+      if (!isAnimating) return;
+      animIsPaused = !animIsPaused;
+      document.getElementById('btnAnimPlayPause').innerText = animIsPaused ? '▶ Reanudar' : '⏸ Pausar';
+      if (!animIsPaused) {
+        runAnimLoop();
+      }
+    }
+
+    function setAnimFps(val) {
+      animFps = Math.max(1, parseInt(val, 10) || 10);
+    }
+
+    function setAnimMode(val) {
+      animMode = val;
+    }
+
+    function stepAnimPrev() {
+      if (!isAnimating || animFrames.length === 0) return;
+      animIsPaused = true;
+      document.getElementById('btnAnimPlayPause').innerText = '▶ Reanudar';
+      animCurrentStep = (animCurrentStep - 1 + animFrames.length) % animFrames.length;
+      renderCurrentAnimFrame();
+    }
+
+    function stepAnimNext() {
+      if (!isAnimating || animFrames.length === 0) return;
+      animIsPaused = true;
+      document.getElementById('btnAnimPlayPause').innerText = '▶ Reanudar';
+      animCurrentStep = (animCurrentStep + 1) % animFrames.length;
+      renderCurrentAnimFrame();
+    }
+
+    function jumpToAnimFrame(idx) {
+      if (!isAnimating || !animFrames[idx]) return;
+      animCurrentStep = idx;
+      renderCurrentAnimFrame();
+    }
+
+    function updateAnimationFrames() {
+      if (!isAnimating) return;
+      animFrames = getSelectedSpritesForAnimation();
+      if (animFrames.length === 0) {
+        stopAnimation();
+        return;
+      }
+      if (animCurrentStep >= animFrames.length) animCurrentStep = 0;
+      document.getElementById('detailTitle').innerText = 'ANIMACIÓN (' + animFrames.length + ' FOTOGRAMAS)';
+      document.getElementById('animStatusTitle').innerText = 'ANIMANDO ' + animFrames.length + ' FOTOGRAMAS';
+      renderAnimThumbStrip();
+      renderCurrentAnimFrame();
+    }
+
+    function renderAnimThumbStrip() {
+      const strip = document.getElementById('animThumbStrip');
+      strip.innerHTML = '';
+      animFrames.forEach((s, idx) => {
+        const item = document.createElement('div');
+        item.className = 'anim-thumb-item ' + (idx === animCurrentStep ? 'active' : '');
+        item.title = 'Fotograma ' + (idx + 1) + ' (ID ' + s.code + ' - ' + (s.description || '') + ')';
+        item.onclick = () => jumpToAnimFrame(idx);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = s.width;
+        canvas.height = s.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
+        ctx.putImageData(imgData, 0, 0);
+
+        const num = document.createElement('div');
+        num.className = 'thumb-num';
+        num.innerText = s.code;
+
+        item.appendChild(canvas);
+        item.appendChild(num);
+        strip.appendChild(item);
+      });
+    }
+
+    function renderCurrentAnimFrame() {
+      if (!animFrames || animFrames.length === 0) return;
+      const s = animFrames[animCurrentStep] || animFrames[0];
+      if (!s) return;
+
+      const canvas = document.getElementById('previewCanvas');
+      canvas.width = s.width;
+      canvas.height = s.height;
+      const ctx = canvas.getContext('2d');
+      const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
+      ctx.putImageData(imgData, 0, 0);
+
+      // CP0 center point indicator
+      if (s.controlPoints && s.controlPoints.length > 0) {
+        const pt = s.controlPoints[0];
+        ctx.fillStyle = '#00ffcc';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      const wrapper = document.getElementById('canvasWrapper');
+      wrapper.style.width = (s.width * currentZoom) + 'px';
+      wrapper.style.height = (s.height * currentZoom) + 'px';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+
+      document.getElementById('animFrameText').innerText = (animCurrentStep + 1) + ' / ' + animFrames.length + ' (ID ' + s.code + ')';
+      document.getElementById('coordsBadge').innerText = s.width + ' × ' + s.height + ' px | ID ' + s.code;
+
+      document.querySelectorAll('.anim-thumb-item').forEach((item, idx) => {
+        item.classList.toggle('active', idx === animCurrentStep);
+      });
+    }
+
+    function runAnimLoop() {
+      if (!isAnimating) return;
+      if (animTimer) clearTimeout(animTimer);
+
+      if (!animIsPaused && animFrames.length > 0) {
+        renderCurrentAnimFrame();
+
+        if (animFrames.length > 1) {
+          if (animMode === 'pingpong') {
+            if (animDirection === 1 && animCurrentStep >= animFrames.length - 1) {
+              animDirection = -1;
+            } else if (animDirection === -1 && animCurrentStep <= 0) {
+              animDirection = 1;
+            }
+            animCurrentStep += animDirection;
+          } else {
+            animCurrentStep = (animCurrentStep + 1) % animFrames.length;
+          }
+        }
+      }
+
+      const intervalMs = Math.max(16, Math.round(1000 / animFps));
+      animTimer = setTimeout(runAnimLoop, intervalMs);
     }
 
     function clearDetail() {
@@ -1242,7 +1651,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
     function applyZoom() {
       const wrapper = document.getElementById('canvasWrapper');
-      const s = fpgData.sprites[selectedIndex];
+      const s = isAnimating ? (animFrames[animCurrentStep] || fpgData.sprites[selectedIndex]) : fpgData.sprites[selectedIndex];
       if (!s) return;
       wrapper.style.width = (s.width * currentZoom) + 'px';
       wrapper.style.height = (s.height * currentZoom) + 'px';
@@ -1257,7 +1666,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     const coordsBadge = document.getElementById('coordsBadge');
 
     canvasWrapper.addEventListener('mousemove', e => {
-      const s = fpgData.sprites[selectedIndex];
+      const s = isAnimating ? (animFrames[animCurrentStep] || fpgData.sprites[selectedIndex]) : fpgData.sprites[selectedIndex];
       if (!s) return;
       const rect = canvasWrapper.getBoundingClientRect();
       const rawX = Math.floor((e.clientX - rect.left) / currentZoom);
@@ -1269,6 +1678,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
 
     // Clic en canvas para situar o añadir punto de control
     canvasWrapper.addEventListener('click', e => {
+      if (isAnimating) return;
       const s = fpgData.sprites[selectedIndex];
       if (!s) return;
       const rect = canvasWrapper.getBoundingClientRect();
@@ -1578,7 +1988,7 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         const imgData = new ImageData(new Uint8ClampedArray(found.rgbaData), found.width, found.height);
         ctx.putImageData(imgData, 0, 0);
 
-        document.getElementById('deletePreviewTitle').innerText = '#' + found.code + ' ' + (found.description || 'Sprite');
+        document.getElementById('deletePreviewTitle').innerText = 'ID ' + found.code + ' · ' + (found.description || 'Sprite');
         document.getElementById('deletePreviewMeta').innerText = found.width + ' × ' + found.height + ' px';
         prevBox.style.display = 'flex';
       } else {
