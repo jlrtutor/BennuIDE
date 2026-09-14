@@ -594,15 +594,17 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     }
 
     .preview-stage {
-      flex: 1;
-      min-height: 260px;
+      height: 210px;
+      min-height: 180px;
+      max-height: 230px;
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       overflow: auto;
       background: #181818;
-      padding: 16px;
+      padding: 10px;
     }
     .preview-canvas-wrapper {
       position: relative;
@@ -631,22 +633,24 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     }
 
     .props-panel {
-      padding: 14px;
+      padding: 10px 14px;
       border-top: 1px solid var(--card-border);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
       background: var(--card-bg);
+      flex: 1;
+      overflow-y: auto;
     }
     .props-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
+      gap: 8px;
     }
     .prop-field {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
     .prop-field label {
       font-size: 10px;
@@ -658,31 +662,161 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       background: var(--bg);
       border: 1px solid var(--card-border);
       color: var(--fg);
-      padding: 5px 8px;
+      padding: 4px 8px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 11px;
     }
     .prop-field input:focus {
       border-color: var(--accent);
       outline: none;
     }
-    .points-list {
+
+    /* Control Points Manager */
+    .cp-manager-container {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
+      gap: 10px;
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px;
+      align-items: stretch;
     }
-    .point-tag {
-      background: #333;
-      padding: 3px 8px;
+    .cp-table-col {
+      flex: 1.1;
+      min-width: 140px;
+      height: 125px;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--card-border);
       border-radius: 4px;
+      background: var(--card-bg);
+      overflow: hidden;
+    }
+    .cp-table-header {
+      display: flex;
+      background: var(--toolbar-bg);
+      padding: 3px 6px;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #888;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .cp-table-body {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .cp-table-row {
+      display: flex;
+      align-items: center;
+      padding: 2px 6px;
       font-size: 11px;
+      font-family: monospace;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: 0.1s;
+    }
+    .cp-table-row:hover {
+      background: var(--hover-bg);
+    }
+    .cp-table-row.selected {
+      background: var(--selection);
+      color: #fff;
+      font-weight: bold;
+    }
+    .cp-table-row.cp0 {
+      border-left: 3px solid #ff3333;
+    }
+    .cp-controls-col {
+      flex: 1.3;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      justify-content: space-between;
+    }
+    .cp-inputs-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .cp-input-group {
       display: flex;
       align-items: center;
       gap: 4px;
     }
-    .point-tag.cp0 {
-      border-left: 3px solid #00ffcc;
+    .cp-input-group label {
+      font-size: 10px;
+      font-weight: bold;
+      color: #aaa;
+    }
+    .cp-input-group input {
+      width: 52px;
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      color: var(--fg);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+    }
+    .cp-input-group input:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+    .cp-actions-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .cp-preset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 20px);
+      grid-template-rows: repeat(3, 20px);
+      gap: 3px;
+      padding: 4px;
+      background: #181818;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      align-self: flex-start;
+    }
+    .cp-preset-btn {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid #555;
+      background: #2a2a2a;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .cp-preset-btn:hover {
+      border-color: #00ffcc;
+      background: #007acc;
+      transform: scale(1.15);
+    }
+    .cp-preset-btn.active {
+      border-color: #00ffcc;
+      background: #00ffcc;
+      box-shadow: 0 0 6px #00ffcc;
+    }
+    .cp-preset-btn.center::after {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #aaa;
+    }
+    .cp-preset-btn.center:hover::after, .cp-preset-btn.center.active::after {
+      background: #000;
+    }
+    .cp-btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
     }
 
     /* Animation Player Panel */
@@ -987,17 +1121,23 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     <div class="right-pane">
       <div class="detail-header">
         <div style="font-size:12px; font-weight:bold;" id="detailTitle">DETALLE DEL GRÁFICO</div>
-        <div class="zoom-controls">
-          <span style="font-size:11px; color:#888;">Zoom:</span>
-          <select id="zoomSelect" class="zoom-select" onchange="setZoom(this.value)">
-            <option value="0.5">50%</option>
-            <option value="1" selected>100%</option>
-            <option value="2">200%</option>
-            <option value="3">300%</option>
-            <option value="4">400%</option>
-            <option value="6">600%</option>
-            <option value="8">800%</option>
-          </select>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <label style="font-size:11px; color:#ddd; display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
+            <input type="checkbox" id="chkShowCps" checked onchange="toggleShowCps(this.checked)" style="cursor:pointer;" />
+            <span>Ver CPs (+)</span>
+          </label>
+          <div class="zoom-controls">
+            <span style="font-size:11px; color:#888;">Zoom:</span>
+            <select id="zoomSelect" class="zoom-select" onchange="setZoom(this.value)">
+              <option value="0.5">50%</option>
+              <option value="1" selected>100%</option>
+              <option value="2">200%</option>
+              <option value="3">300%</option>
+              <option value="4">400%</option>
+              <option value="6">600%</option>
+              <option value="8">800%</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1026,11 +1166,65 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
         </div>
 
         <div class="prop-field">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <label>Puntos de Control (Haz clic en el sprite)</label>
-            <button class="btn btn-secondary" style="font-size:10px; padding:2px 6px;" onclick="resetCenterPoint()">Centrar CP0</button>
+          <label style="margin-bottom:2px;">Puntos de Control</label>
+          <div class="cp-manager-container">
+            <!-- Left Side: Table List of CPs -->
+            <div class="cp-table-col">
+              <div class="cp-table-header">
+                <span style="width:52px;">Número</span>
+                <span style="width:38px;">X</span>
+                <span style="width:38px;">Y</span>
+              </div>
+              <div class="cp-table-body" id="cpTableBody"></div>
+            </div>
+
+            <!-- Right Side: Edit X,Y + 9-Preset Anchor Grid + Action Buttons -->
+            <div class="cp-controls-col">
+              <div class="cp-inputs-row">
+                <div class="cp-input-group">
+                  <label>X</label>
+                  <input type="number" id="cpInputX" min="0" oninput="onCpCoordsInput()" />
+                </div>
+                <div class="cp-input-group">
+                  <label>Y</label>
+                  <input type="number" id="cpInputY" min="0" oninput="onCpCoordsInput()" />
+                </div>
+              </div>
+
+              <div class="cp-actions-row">
+                <!-- 3x3 Preset Grid -->
+                <div class="cp-preset-grid" title="Posiciones prestablecidas: 4 esquinas, 4 laterales y centro">
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(0, 0, this)" title="Superior Izquierda (0, 0)"></button>
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(0.5, 0, this)" title="Superior Centro"></button>
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(1, 0, this)" title="Superior Derecha"></button>
+
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(0, 0.5, this)" title="Centro Izquierda"></button>
+                  <button type="button" class="cp-preset-btn center" onclick="applyPresetPosition(0.5, 0.5, this)" title="Centro (W/2, H/2)"></button>
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(1, 0.5, this)" title="Centro Derecha"></button>
+
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(0, 1, this)" title="Inferior Izquierda"></button>
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(0.5, 1, this)" title="Inferior Centro"></button>
+                  <button type="button" class="cp-preset-btn" onclick="applyPresetPosition(1, 1, this)" title="Inferior Derecha"></button>
+                </div>
+
+                <!-- Action Button Stack -->
+                <div class="cp-btn-stack">
+                  <button type="button" class="btn" onclick="addControlPointFromInputs()" style="padding:3px 8px; font-size:11px;">
+                    ➕ Añadir punto
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="setRealCenterPoint()" style="padding:3px 8px; font-size:11px;" title="Centrar punto 0 (CP0)">
+                    🎯 Poner Centro
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="deleteSelectedControlPoint()" style="padding:3px 8px; font-size:11px; color:#ff7777;" title="Eliminar punto seleccionado">
+                    🗑️ Eliminar punto
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="resetAllControlPoints()" style="padding:2px 6px; font-size:10px; color:#aaa;" title="Restablecer a sólo CP0 centrado">
+                    🧹 Borrar todos
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="points-list" id="pointsList"></div>
         </div>
 
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
@@ -1178,6 +1372,8 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
     let viewMode = 'grid'; // 'grid' (8 por fila) o 'list'
     let currentZoom = 1;
     let selectedNewSprites = [];
+    let showControlPoints = true;
+    let selectedCpIndex = 0;
 
     // Estado de animación
     let isAnimating = false;
@@ -1607,6 +1803,13 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       animTimer = setTimeout(runAnimLoop, intervalMs);
     }
 
+    function toggleShowCps(checked) {
+      showControlPoints = checked;
+      if (fpgData.sprites[selectedIndex]) {
+        renderPreview(fpgData.sprites[selectedIndex]);
+      }
+    }
+
     function clearDetail() {
       document.getElementById('detailTitle').innerText = 'SIN GRÁFICOS';
       document.getElementById('propCode').value = '';
@@ -1614,7 +1817,10 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.getElementById('propDims').value = '';
       const canvas = document.getElementById('previewCanvas');
       canvas.width = 1; canvas.height = 1;
-      document.getElementById('pointsList').innerHTML = '';
+      const body = document.getElementById('cpTableBody');
+      if (body) body.innerHTML = '';
+      document.getElementById('cpInputX').value = '';
+      document.getElementById('cpInputY').value = '';
     }
 
     function renderPreview(s) {
@@ -1625,21 +1831,52 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       const imgData = new ImageData(new Uint8ClampedArray(s.rgbaData), s.width, s.height);
       ctx.putImageData(imgData, 0, 0);
 
-      // Draw Control Points
-      s.controlPoints.forEach((pt, i) => {
-        ctx.fillStyle = i === 0 ? '#00ffcc' : '#ff0055';
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+      // Draw Control Points as Crosshairs (+)
+      if (showControlPoints && s.controlPoints && s.controlPoints.length > 0) {
+        s.controlPoints.forEach((pt, i) => {
+          const isCp0 = (i === 0);
+          const isSel = (i === selectedCpIndex);
+          const size = 6;
+          const x = pt.x;
+          const y = pt.y;
 
-        // Label
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px monospace';
-        ctx.fillText('CP' + i, pt.x + 6, pt.y + 4);
-      });
+          // Outer high-contrast black border
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(x - size, y);
+          ctx.lineTo(x + size, y);
+          ctx.moveTo(x, y - size);
+          ctx.lineTo(x, y + size);
+          ctx.stroke();
+
+          // Inner crosshair line
+          const color = isSel ? '#00ffcc' : (isCp0 ? '#ff3333' : '#ffcc00');
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x - size, y);
+          ctx.lineTo(x + size, y);
+          ctx.moveTo(x, y - size);
+          ctx.lineTo(x, y + size);
+          ctx.stroke();
+
+          // Selection indicator box
+          if (isSel) {
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x - size - 1, y - size - 1, (size + 1) * 2, (size + 1) * 2);
+          }
+
+          // Label
+          const label = i.toString().padStart(3, '0');
+          ctx.font = 'bold 9px monospace';
+          ctx.fillStyle = '#000000';
+          ctx.fillText(label, x + size + 2, y + 3);
+          ctx.fillStyle = color;
+          ctx.fillText(label, x + size + 1, y + 2);
+        });
+      }
 
       applyZoom();
     }
@@ -1676,24 +1913,31 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       coordsBadge.innerText = 'X: ' + x + ' | Y: ' + y;
     });
 
-    // Clic en canvas para situar o añadir punto de control
+    // Clic en canvas para seleccionar, situar o añadir punto de control
     canvasWrapper.addEventListener('click', e => {
       if (isAnimating) return;
       const s = fpgData.sprites[selectedIndex];
       if (!s) return;
       const rect = canvasWrapper.getBoundingClientRect();
-      const rawX = Math.floor((e.clientX - rect.left) / currentZoom);
-      const rawY = Math.floor((e.clientY - rect.top) / currentZoom);
-      const x = Math.max(0, Math.min(s.width - 1, rawX));
-      const y = Math.max(0, Math.min(s.height - 1, rawY));
+      const rawX = Math.max(0, Math.min(s.width - 1, Math.floor((e.clientX - rect.left) / currentZoom)));
+      const rawY = Math.max(0, Math.min(s.height - 1, Math.floor((e.clientY - rect.top) / currentZoom)));
 
-      if (e.shiftKey) {
-        s.controlPoints.push({ x, y });
+      // Comprobar si se hace clic cerca de un punto existente (radio 6px)
+      const nearIndex = (s.controlPoints || []).findIndex(pt => Math.hypot(pt.x - rawX, pt.y - rawY) <= 6);
+
+      if (nearIndex >= 0) {
+        selectedCpIndex = nearIndex;
+      } else if (e.shiftKey) {
+        // Shift+Clic: Añadir nuevo punto
+        s.controlPoints.push({ x: rawX, y: rawY });
+        selectedCpIndex = s.controlPoints.length - 1;
       } else {
-        if (s.controlPoints.length === 0) {
-          s.controlPoints.push({ x, y });
+        // Clic simple: Mover el punto seleccionado actual
+        if (!s.controlPoints || s.controlPoints.length === 0) {
+          s.controlPoints = [{ x: rawX, y: rawY }];
+          selectedCpIndex = 0;
         } else {
-          s.controlPoints[0] = { x, y };
+          s.controlPoints[selectedCpIndex] = { x: rawX, y: rawY };
         }
       }
 
@@ -1707,13 +1951,115 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       renderPointsList(s);
     });
 
-    function resetCenterPoint() {
+    function renderPointsList(s) {
+      const body = document.getElementById('cpTableBody');
+      if (!body) return;
+      body.innerHTML = '';
+      if (!s || !s.controlPoints || s.controlPoints.length === 0) {
+        document.getElementById('cpInputX').value = '';
+        document.getElementById('cpInputY').value = '';
+        return;
+      }
+
+      if (selectedCpIndex >= s.controlPoints.length) {
+        selectedCpIndex = 0;
+      }
+
+      s.controlPoints.forEach((pt, i) => {
+        const row = document.createElement('div');
+        row.className = 'cp-table-row ' + (i === 0 ? 'cp0 ' : '') + (i === selectedCpIndex ? 'selected' : '');
+        row.onclick = () => selectControlPoint(i);
+
+        const numSpan = document.createElement('span');
+        numSpan.style.width = '52px';
+        numSpan.innerText = i.toString().padStart(3, '0') + (i === 0 ? ' (C)' : '');
+
+        const xSpan = document.createElement('span');
+        xSpan.style.width = '38px';
+        xSpan.innerText = pt.x;
+
+        const ySpan = document.createElement('span');
+        ySpan.style.width = '38px';
+        ySpan.innerText = pt.y;
+
+        row.appendChild(numSpan);
+        row.appendChild(xSpan);
+        row.appendChild(ySpan);
+        body.appendChild(row);
+      });
+
+      const curPt = s.controlPoints[selectedCpIndex] || s.controlPoints[0];
+      if (curPt) {
+        document.getElementById('cpInputX').value = curPt.x;
+        document.getElementById('cpInputY').value = curPt.y;
+      }
+    }
+
+    function selectControlPoint(i) {
+      selectedCpIndex = i;
+      const s = fpgData.sprites[selectedIndex];
+      if (s) {
+        renderPointsList(s);
+        renderPreview(s);
+      }
+    }
+
+    function onCpCoordsInput() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s || !s.controlPoints || s.controlPoints.length === 0) return;
+      let x = parseInt(document.getElementById('cpInputX').value, 10);
+      let y = parseInt(document.getElementById('cpInputY').value, 10);
+      if (isNaN(x)) x = 0;
+      if (isNaN(y)) y = 0;
+      x = Math.max(0, Math.min(s.width - 1, x));
+      y = Math.max(0, Math.min(s.height - 1, y));
+
+      if (s.controlPoints[selectedCpIndex]) {
+        s.controlPoints[selectedCpIndex] = { x, y };
+        vscode.postMessage({
+          type: 'updateSprite',
+          index: selectedIndex,
+          controlPoints: s.controlPoints
+        });
+        renderPreview(s);
+
+        const rows = document.querySelectorAll('.cp-table-row');
+        if (rows[selectedCpIndex]) {
+          const spans = rows[selectedCpIndex].querySelectorAll('span');
+          if (spans.length >= 3) {
+            spans[1].innerText = x;
+            spans[2].innerText = y;
+          }
+        }
+      }
+    }
+
+    function applyPresetPosition(rx, ry, btnEl) {
       const s = fpgData.sprites[selectedIndex];
       if (!s) return;
-      const cx = Math.floor(s.width / 2);
-      const cy = Math.floor(s.height / 2);
-      if (s.controlPoints.length === 0) s.controlPoints.push({ x: cx, y: cy });
-      else s.controlPoints[0] = { x: cx, y: cy };
+      const x = Math.max(0, Math.min(s.width - 1, Math.round(rx * (s.width - 1))));
+      const y = Math.max(0, Math.min(s.height - 1, Math.round(ry * (s.height - 1))));
+      document.getElementById('cpInputX').value = x;
+      document.getElementById('cpInputY').value = y;
+
+      document.querySelectorAll('.cp-preset-btn').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+    }
+
+    function addControlPointFromInputs() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      if (!s.controlPoints) s.controlPoints = [];
+
+      let x = parseInt(document.getElementById('cpInputX').value, 10);
+      let y = parseInt(document.getElementById('cpInputY').value, 10);
+      if (isNaN(x)) x = Math.floor(s.width / 2);
+      if (isNaN(y)) y = Math.floor(s.height / 2);
+      x = Math.max(0, Math.min(s.width - 1, x));
+      y = Math.max(0, Math.min(s.height - 1, y));
+
+      s.controlPoints.push({ x, y });
+      selectedCpIndex = s.controlPoints.length - 1;
 
       vscode.postMessage({
         type: 'updateSprite',
@@ -1724,29 +2070,64 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       renderPointsList(s);
     }
 
-    function renderPointsList(s) {
-      const container = document.getElementById('pointsList');
-      container.innerHTML = '';
-      s.controlPoints.forEach((pt, i) => {
-        const tag = document.createElement('div');
-        tag.className = 'point-tag ' + (i === 0 ? 'cp0' : '');
-        tag.innerText = 'CP' + i + ': (' + pt.x + ', ' + pt.y + ')';
-        if (i > 0) {
-          const delBtn = document.createElement('span');
-          delBtn.innerText = '✕';
-          delBtn.style.cursor = 'pointer';
-          delBtn.style.marginLeft = '4px';
-          delBtn.onclick = (e) => {
-            e.stopPropagation();
-            s.controlPoints.splice(i, 1);
-            vscode.postMessage({ type: 'updateSprite', index: selectedIndex, controlPoints: s.controlPoints });
-            renderPreview(s);
-            renderPointsList(s);
-          };
-          tag.appendChild(delBtn);
-        }
-        container.appendChild(tag);
+    function setRealCenterPoint() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      let x = parseInt(document.getElementById('cpInputX').value, 10);
+      let y = parseInt(document.getElementById('cpInputY').value, 10);
+      if (isNaN(x) || isNaN(y)) {
+        x = Math.floor(s.width / 2);
+        y = Math.floor(s.height / 2);
+      }
+      x = Math.max(0, Math.min(s.width - 1, x));
+      y = Math.max(0, Math.min(s.height - 1, y));
+
+      if (!s.controlPoints || s.controlPoints.length === 0) s.controlPoints = [{ x, y }];
+      else s.controlPoints[0] = { x, y };
+      selectedCpIndex = 0;
+
+      vscode.postMessage({
+        type: 'updateSprite',
+        index: selectedIndex,
+        controlPoints: s.controlPoints
       });
+      renderPreview(s);
+      renderPointsList(s);
+    }
+
+    function deleteSelectedControlPoint() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s || !s.controlPoints || s.controlPoints.length === 0) return;
+
+      if (selectedCpIndex === 0) {
+        s.controlPoints[0] = { x: Math.floor(s.width / 2), y: Math.floor(s.height / 2) };
+      } else {
+        s.controlPoints.splice(selectedCpIndex, 1);
+        selectedCpIndex = Math.max(0, selectedCpIndex - 1);
+      }
+
+      vscode.postMessage({
+        type: 'updateSprite',
+        index: selectedIndex,
+        controlPoints: s.controlPoints
+      });
+      renderPreview(s);
+      renderPointsList(s);
+    }
+
+    function resetAllControlPoints() {
+      const s = fpgData.sprites[selectedIndex];
+      if (!s) return;
+      s.controlPoints = [{ x: Math.floor(s.width / 2), y: Math.floor(s.height / 2) }];
+      selectedCpIndex = 0;
+
+      vscode.postMessage({
+        type: 'updateSprite',
+        index: selectedIndex,
+        controlPoints: s.controlPoints
+      });
+      renderPreview(s);
+      renderPointsList(s);
     }
 
     function updateSelectedProp(key, value) {
