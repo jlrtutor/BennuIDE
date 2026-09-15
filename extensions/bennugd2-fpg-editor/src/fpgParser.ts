@@ -106,7 +106,9 @@ export class FpgParser {
         if (offset + 4 > buffer.length) break;
         const px = view.getInt16(offset, true);
         const py = view.getInt16(offset + 2, true);
-        controlPoints.push({ x: px, y: py });
+        if (px >= 0 && py >= 0) {
+          controlPoints.push({ x: px, y: py });
+        }
         offset += 4;
       }
 
