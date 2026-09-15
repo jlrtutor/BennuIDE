@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <path fill="#0277bd" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#0288d1" d="M9 1v4h4L9 1z"/>
+  <!-- Markdown M & Down Arrow -->
+  <path fill="#e1f5fe" d="M5 7.5v3.5h.8v-2l.9 1.1.9-1.1v2h.8V7.5h-.8L7.6 9 6.8 7.5H5zm4.8.5v1.8h-.7l1.1 1.2 1.1-1.2h-.7V8h-.8z"/>
+</svg>

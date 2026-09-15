@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <defs>
+    <linearGradient id="fpgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e040fb"/>
+      <stop offset="100%" stop-color="#7c4dff"/>
+    </linearGradient>
+  </defs>
+  <!-- Document Base -->
+  <path fill="#311b92" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#4527a0" d="M9 1v4h4L9 1z"/>
+  <!-- Palette / Sprite Matrix -->
+  <circle cx="6" cy="7.5" r="1.2" fill="#ff4081"/>
+  <circle cx="9.5" cy="7" r="1.2" fill="#00e676"/>
+  <circle cx="6.5" cy="10.5" r="1.2" fill="#ffeb3b"/>
+  <circle cx="10" cy="10" r="1.2" fill="#00e5ff"/>
+  <path fill="none" stroke="url(#fpgGrad)" stroke-width="0.8" d="M4.5 9a3.5 3.5 0 1 1 5.5 2.5c-.5.4-.8.8-.8 1.5H8c0-1 .5-1.7 1.2-2.2"/>
+</svg>

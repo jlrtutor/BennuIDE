@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <path fill="#212121" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#424242" d="M9 1v4h4L9 1z"/>
+  <!-- Terminal Prompt >_ -->
+  <path fill="none" stroke="#00e676" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" d="M5.5 7.5L7.2 9l-1.7 1.5"/>
+  <path fill="#00e676" d="M8 10.5h2.5v.8H8z"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <defs>
+    <linearGradient id="fntGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e676"/>
+      <stop offset="100%" stop-color="#00b0ff"/>
+    </linearGradient>
+  </defs>
+  <!-- Document Base -->
+  <path fill="#004d40" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#00695c" d="M9 1v4h4L9 1z"/>
+  <!-- Typographic 'A' glyph with grid -->
+  <text x="8" y="12" font-family="'Courier New', monospace, sans-serif" font-size="7.5" font-weight="900" text-anchor="middle" fill="url(#fntGrad)">A</text>
+  <path stroke="#00e676" stroke-width="0.5" stroke-dasharray="1,1" d="M4.5 6.5h7M4.5 12.5h7"/>
+</svg>

@@ -1,0 +1,204 @@
+{
+  "iconDefinitions": {
+    "_file": {
+      "iconPath": "./svg/file.svg"
+    },
+    "_folder": {
+      "iconPath": "./svg/folder.svg"
+    },
+    "_folder_open": {
+      "iconPath": "./svg/folder-open.svg"
+    },
+    "_bennugd_prg": {
+      "iconPath": "./svg/bennugd-prg.svg"
+    },
+    "_bennugd_dcb": {
+      "iconPath": "./svg/bennugd-dcb.svg"
+    },
+    "_bennugd_fpg": {
+      "iconPath": "./svg/bennugd-fpg.svg"
+    },
+    "_bennugd_fnt": {
+      "iconPath": "./svg/bennugd-fnt.svg"
+    },
+    "_image": {
+      "iconPath": "./svg/image.svg"
+    },
+    "_audio": {
+      "iconPath": "./svg/audio.svg"
+    },
+    "_video": {
+      "iconPath": "./svg/video.svg"
+    },
+    "_model3d": {
+      "iconPath": "./svg/model-3d.svg"
+    },
+    "_c": {
+      "iconPath": "./svg/c.svg"
+    },
+    "_cpp": {
+      "iconPath": "./svg/cpp.svg"
+    },
+    "_json": {
+      "iconPath": "./svg/json.svg"
+    },
+    "_xml": {
+      "iconPath": "./svg/xml.svg"
+    },
+    "_ts": {
+      "iconPath": "./svg/typescript.svg"
+    },
+    "_js": {
+      "iconPath": "./svg/javascript.svg"
+    },
+    "_python": {
+      "iconPath": "./svg/python.svg"
+    },
+    "_terminal": {
+      "iconPath": "./svg/terminal.svg"
+    },
+    "_markdown": {
+      "iconPath": "./svg/markdown.svg"
+    },
+    "_text": {
+      "iconPath": "./svg/text.svg"
+    },
+    "_archive": {
+      "iconPath": "./svg/archive.svg"
+    },
+    "_git": {
+      "iconPath": "./svg/git.svg"
+    },
+    "_settings": {
+      "iconPath": "./svg/settings.svg"
+    }
+  },
+  "file": "_file",
+  "folder": "_folder",
+  "folderExpanded": "_folder_open",
+  "rootFolder": "_folder",
+  "rootFolderExpanded": "_folder_open",
+  "fileExtensions": {
+    "prg": "_bennugd_prg",
+    "inc": "_bennugd_prg",
+    "bgd": "_bennugd_prg",
+    "PRG": "_bennugd_prg",
+    "INC": "_bennugd_prg",
+    "BGD": "_bennugd_prg",
+    "dcb": "_bennugd_dcb",
+    "DCB": "_bennugd_dcb",
+    "bin": "_bennugd_dcb",
+    "fpg": "_bennugd_fpg",
+    "map": "_bennugd_fpg",
+    "FPG": "_bennugd_fpg",
+    "MAP": "_bennugd_fpg",
+    "fnt": "_bennugd_fnt",
+    "fnx": "_bennugd_fnt",
+    "FNT": "_bennugd_fnt",
+    "FNX": "_bennugd_fnt",
+    "png": "_image",
+    "jpg": "_image",
+    "jpeg": "_image",
+    "bmp": "_image",
+    "tga": "_image",
+    "gif": "_image",
+    "webp": "_image",
+    "ico": "_image",
+    "PNG": "_image",
+    "JPG": "_image",
+    "JPEG": "_image",
+    "BMP": "_image",
+    "TGA": "_image",
+    "GIF": "_image",
+    "WEBP": "_image",
+    "wav": "_audio",
+    "ogg": "_audio",
+    "mp3": "_audio",
+    "mod": "_audio",
+    "xm": "_audio",
+    "it": "_audio",
+    "s3m": "_audio",
+    "mid": "_audio",
+    "midi": "_audio",
+    "flac": "_audio",
+    "WAV": "_audio",
+    "OGG": "_audio",
+    "MP3": "_audio",
+    "MOD": "_audio",
+    "XM": "_audio",
+    "IT": "_audio",
+    "S3M": "_audio",
+    "MID": "_audio",
+    "MIDI": "_audio",
+    "FLAC": "_audio",
+    "mp4": "_video",
+    "webm": "_video",
+    "avi": "_video",
+    "mkv": "_video",
+    "ogv": "_video",
+    "obj": "_model3d",
+    "gltf": "_model3d",
+    "glb": "_model3d",
+    "blend": "_model3d",
+    "fbx": "_model3d",
+    "dae": "_model3d",
+    "c": "_c",
+    "h": "_c",
+    "cpp": "_cpp",
+    "hpp": "_cpp",
+    "cc": "_cpp",
+    "cxx": "_cpp",
+    "json": "_json",
+    "xml": "_xml",
+    "html": "_xml",
+    "htm": "_xml",
+    "svg": "_xml",
+    "ts": "_ts",
+    "tsx": "_ts",
+    "js": "_js",
+    "jsx": "_js",
+    "mjs": "_js",
+    "cjs": "_js",
+    "py": "_python",
+    "sh": "_terminal",
+    "bash": "_terminal",
+    "zsh": "_terminal",
+    "bat": "_terminal",
+    "cmd": "_terminal",
+    "md": "_markdown",
+    "markdown": "_markdown",
+    "txt": "_text",
+    "log": "_text",
+    "zip": "_archive",
+    "rar": "_archive",
+    "7z": "_archive",
+    "tar": "_archive",
+    "gz": "_archive",
+    "pkg": "_archive",
+    "dmg": "_archive"
+  },
+  "fileNames": {
+    "package.json": "_settings",
+    "tsconfig.json": "_settings",
+    "tsconfig.base.json": "_settings",
+    "settings.json": "_settings",
+    ".gitignore": "_git",
+    ".gitattributes": "_git",
+    ".gitmodules": "_git",
+    "README.md": "_markdown",
+    "CHANGELOG.md": "_markdown",
+    "Makefile": "_terminal",
+    "CMakeLists.txt": "_c"
+  },
+  "languageIds": {
+    "bennugd2": "_bennugd_prg",
+    "c": "_c",
+    "cpp": "_cpp",
+    "json": "_json",
+    "markdown": "_markdown",
+    "typescript": "_ts",
+    "javascript": "_js",
+    "python": "_python",
+    "shellscript": "_terminal"
+  }
+}

@@ -127,6 +127,7 @@ if [ -f "${PRODUCT_JSON}" ]; then
     }
     data.configurationDefaults = {
       'workbench.colorTheme': 'BennuIDE Dark (One Dark Pro)',
+      'workbench.iconTheme': 'bennuide-icons',
       'locale': 'es',
       'workbench.editor.languageDetection': false,
       'files.associations': {

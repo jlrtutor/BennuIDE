@@ -50,6 +50,7 @@
       }
     ],
     "configurationDefaults": {
+      "workbench.iconTheme": "bennuide-icons",
       "workbench.editor.languageDetection": false,
       "files.associations": {
         "*.prg": "bennugd2",
@@ -65,6 +66,13 @@
         "language": "bennugd2",
         "scopeName": "source.bennugd2",
         "path": "./syntaxes/bennugd2.tmLanguage.json"
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "bennuide-icons",
+        "label": "BennuIDE (Tema de Iconos Oficial)",
+        "path": "./icons/bennuide-icon-theme.json"
       }
     ],
     "themes": [

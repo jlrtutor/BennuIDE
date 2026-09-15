@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <defs>
+    <linearGradient id="dcbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#0091ea"/>
+    </linearGradient>
+  </defs>
+  <!-- Document Base -->
+  <path fill="#1a237e" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#283593" d="M9 1v4h4L9 1z"/>
+  <!-- Binary / Execution Chip -->
+  <rect x="5" y="6" width="6" height="6" rx="1" fill="url(#dcbGrad)"/>
+  <path fill="#fff" d="M7 7.5v3l2.5-1.5L7 7.5z"/>
+  <path stroke="#00e5ff" stroke-width="0.8" d="M6 5v1m4-1v1M6 12v1m4-1v1M4 7h1m-1 4h1M11 7h1m-1 4h1"/>
+</svg>

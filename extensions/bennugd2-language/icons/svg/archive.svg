@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <path fill="#e65100" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#f57c00" d="M9 1v4h4L9 1z"/>
+  <!-- Zipper Pattern -->
+  <path fill="#fff" d="M7 6h1v.8H7zm1 .8h1v.8H8zm-1 .8h1v.8H7zm1 .8h1v.8H8zm-1 .8h1v.8H7zm.5 1.2c-.4 0-.7.3-.7.7v1.2h1.4v-1.2c0-.4-.3-.7-.7-.7z"/>
+</svg>
