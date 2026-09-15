@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <path fill="#0277bd" d="M3 1h6.5L13 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1z"/>
+  <path fill="#0288d1" d="M9 1v4h4L9 1z"/>
+  <!-- Executable Application Window / Play -->
+  <rect x="4.5" y="6.5" width="7" height="6" rx="0.8" fill="#e1f5fe"/>
+  <rect x="4.5" y="6.5" width="7" height="1.8" fill="#01579b"/>
+  <circle cx="5.5" cy="7.4" r="0.4" fill="#ff5252"/>
+  <circle cx="6.7" cy="7.4" r="0.4" fill="#ffd740"/>
+  <circle cx="7.9" cy="7.4" r="0.4" fill="#69f0ae"/>
+  <path fill="#0288d1" d="M7 9.2v2.4l2-1.2L7 9.2z"/>
+</svg>

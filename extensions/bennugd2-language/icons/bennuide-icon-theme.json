@@ -71,6 +71,12 @@
     },
     "_settings": {
       "iconPath": "./svg/settings.svg"
+    },
+    "_exe": {
+      "iconPath": "./svg/exe.svg"
+    },
+    "_dll": {
+      "iconPath": "./svg/dll.svg"
     }
   },
   "file": "_file",
@@ -175,7 +181,15 @@
     "tar": "_archive",
     "gz": "_archive",
     "pkg": "_archive",
-    "dmg": "_archive"
+    "dmg": "_archive",
+    "exe": "_exe",
+    "EXE": "_exe",
+    "dll": "_dll",
+    "DLL": "_dll",
+    "so": "_dll",
+    "SO": "_dll",
+    "dylib": "_dll",
+    "DYLIB": "_dll"
   },
   "fileNames": {
     "package.json": "_settings",
