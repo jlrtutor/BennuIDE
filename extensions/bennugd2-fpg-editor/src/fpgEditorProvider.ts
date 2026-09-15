@@ -2085,6 +2085,25 @@ export class FpgEditorProvider implements vscode.CustomEditorProvider<FpgDocumen
       document.querySelectorAll('.cp-preset-btn').forEach(b => b.classList.remove('active'));
       if (btnEl) btnEl.classList.add('active');
 
+      if (s.controlPoints && selectedCpIndex >= 0 && s.controlPoints[selectedCpIndex]) {
+        s.controlPoints[selectedCpIndex] = { x, y };
+        vscode.postMessage({
+          type: 'updateSprite',
+          index: selectedIndex,
+          controlPoints: s.controlPoints
+        });
+        renderPreview(s);
+
+        const rows = document.querySelectorAll('.cp-table-row');
+        if (rows[selectedCpIndex]) {
+          const spans = rows[selectedCpIndex].querySelectorAll('span');
+          if (spans.length >= 3) {
+            spans[1].innerText = x;
+            spans[2].innerText = y;
+          }
+        }
+      }
+
       updateAddPointBtnState();
     }
 
