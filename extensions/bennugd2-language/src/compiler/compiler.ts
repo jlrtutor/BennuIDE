@@ -174,9 +174,31 @@ export class BennuCompiler {
         const binDir = path.isAbsolute(profile.compilerPath) ? path.dirname(profile.compilerPath) : '';
         const systemPath = process.env.PATH || '';
         const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
-        const env = {
+        const bgd2Dev = binDir ? path.resolve(binDir, '..', '..') : '';
+        const libDir = binDir ? path.resolve(binDir, '..', 'lib') : '';
+        
+        // Build robust library paths for macOS and Linux
+        const extraLibPaths = [binDir, libDir];
+        if (bgd2Dev) {
+          extraLibPaths.push(
+            path.join(bgd2Dev, 'build', 'macos-arm64', 'lib'),
+            path.join(bgd2Dev, 'build', 'macos-arm64', 'bin'),
+            path.join(bgd2Dev, 'binaries', 'macos-arm64', 'lib'),
+            path.join(bgd2Dev, 'binaries', 'macos-arm64', 'bin')
+          );
+        }
+        const extraLibPathStr = extraLibPaths.filter(p => p && fs.existsSync(p)).join(':');
+
+        const env: NodeJS.ProcessEnv = {
           ...process.env,
-          PATH: customPath
+          PATH: customPath,
+          BGD2DEV: process.env.BGD2DEV || bgd2Dev,
+          DYLD_LIBRARY_PATH: extraLibPathStr
+            ? `${extraLibPathStr}:${process.env.DYLD_LIBRARY_PATH || ''}`
+            : process.env.DYLD_LIBRARY_PATH,
+          LD_LIBRARY_PATH: extraLibPathStr
+            ? `${extraLibPathStr}:${process.env.LD_LIBRARY_PATH || ''}`
+            : process.env.LD_LIBRARY_PATH
         };
 
         const childProcess = spawn(profile.compilerPath, args, {
@@ -299,9 +321,30 @@ export class BennuCompiler {
       const binDir = path.isAbsolute(profile.runtimePath) ? path.dirname(profile.runtimePath) : '';
       const systemPath = process.env.PATH || '';
       const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
-      const env = {
+      const bgd2Dev = binDir ? path.resolve(binDir, '..', '..') : '';
+      const libDir = binDir ? path.resolve(binDir, '..', 'lib') : '';
+
+      const extraLibPaths = [binDir, libDir];
+      if (bgd2Dev) {
+        extraLibPaths.push(
+          path.join(bgd2Dev, 'build', 'macos-arm64', 'lib'),
+          path.join(bgd2Dev, 'build', 'macos-arm64', 'bin'),
+          path.join(bgd2Dev, 'binaries', 'macos-arm64', 'lib'),
+          path.join(bgd2Dev, 'binaries', 'macos-arm64', 'bin')
+        );
+      }
+      const extraLibPathStr = extraLibPaths.filter(p => p && fs.existsSync(p)).join(':');
+
+      const env: NodeJS.ProcessEnv = {
         ...process.env,
-        PATH: customPath
+        PATH: customPath,
+        BGD2DEV: process.env.BGD2DEV || bgd2Dev,
+        DYLD_LIBRARY_PATH: extraLibPathStr
+          ? `${extraLibPathStr}:${process.env.DYLD_LIBRARY_PATH || ''}`
+          : process.env.DYLD_LIBRARY_PATH,
+        LD_LIBRARY_PATH: extraLibPathStr
+          ? `${extraLibPathStr}:${process.env.LD_LIBRARY_PATH || ''}`
+          : process.env.LD_LIBRARY_PATH
       };
 
       this.runningProcess = spawn(profile.runtimePath, args, {
