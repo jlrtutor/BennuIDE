@@ -119,3 +119,17 @@ Al abrir cualquier archivo `.prg`, `.inc` o `.bgd`, en la barra superior del edi
 3. **`🛠` (Selector de Versión)**: Permite alternar la versión de compilador.
 
 La salida y los errores se reportan con colores en el canal **`BennuGD Output`** y en el panel **`Problemas`** (*Problems*), permitiendo hacer clic en cualquier advertencia o error para saltar a la línea exacta del código fuente.
+
+---
+
+## ❓ 5. Preguntas Frecuentes y Resolución de Problemas
+
+### 🔴 Error: `No se pudo ejecutar el compilador 'bgdc': spawn bgdc ENOENT`
+- **Causa:** El ejecutable `bgdc` no está en el `PATH` global de tu sistema operativo ni se ha configurado una ruta explícita.
+- **Solución:** Abre los **Ajustes** (`Cmd + ,` en macOS / `Ctrl + ,` en Windows/Linux), busca `bennugd.v2.compilerPath` e introduce la ruta completa a tu ejecutable (ej: `C:\BennuGD2\bin\bgdc.exe` o `/Users/tu_usuario/BennuGD2/build/bin/bgdc`).
+
+### 🔴 Error: `Library "mod_xxx" not found`
+- **Causa:** El compilador no encuentra el módulo dinámico (`.dylib`, `.so` o `.dll`) requerido por tu código (`import "mod_xxx"`).
+- **Solución:**
+  1. Asegúrate de que `bennugd.v2.compilerPath` apunte a la carpeta `bin` donde se encuentran compilados los módulos (por ejemplo `.../build/macos-arm64/bin/bgdc`). BennuIDE inyectará automáticamente `DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH` y `PATH` apuntando a las carpetas de módulos y librerías contiguas.
+  2. Si los módulos están en una carpeta personalizada, añádela a **`bennugd.v2.includePaths`** en Ajustes o en tu `.vscode/settings.json`.

@@ -41,25 +41,64 @@ Basado en el motor de código abierto **Code-OSS**, BennuIDE integra en una úni
 
 ---
 
-## ⚙️ Configuración Rápida de Rutas
+---
 
-Para configurar las rutas de tus compiladores:
-1. Abre los **Ajustes** (`Cmd + ,` en macOS / `Ctrl + ,` en Windows y Linux).
-2. Busca **`BennuGD`**.
-3. Especifica las rutas de tus binarios:
-   - **BennuGD v2:** `bennugd.v2.compilerPath` (`bgdc`) y `bennugd.v2.runtimePath` (`bgdi`).
-   - **BennuGD v1:** `bennugd.v1.compilerPath` (`bgdc`) y `bennugd.v1.runtimePath` (`bgdi`).
+## ⚙️ Cómo Configurar los Compiladores y Rutas de Ejecución
 
-También puedes configurarlo por proyecto en `.vscode/settings.json`:
+BennuIDE viene configurado por defecto para buscar `bgdc` y `bgdi` en el `PATH` del sistema. Si tienes tus ejecutables en una ruta personalizada o deseas configurar versiones específicas (BennuGD v1 o v2), sigue cualquiera de los siguientes dos métodos:
+
+### 🔹 Método 1: Desde la Interfaz Gráfica (Ajustes Globales de BennuIDE)
+
+1. Abre los **Ajustes**:
+   - **macOS:** Presiona <kbd>Cmd</kbd> + <kbd>,</kbd> (o menú *BennuIDE* → *Ajustes* → *Ajustes*).
+   - **Windows / Linux:** Presiona <kbd>Ctrl</kbd> + <kbd>,</kbd> (o menú *Archivo* → *Preferencias* → *Ajustes*).
+2. En la barra de búsqueda superior, escribe **`BennuGD`**.
+3. Rellena los campos correspondientes a la versión que uses:
+
+| Ajuste | Descripción | Ejemplo Windows | Ejemplo macOS / Linux |
+| :--- | :--- | :--- | :--- |
+| **`bennugd.version`** | Versión activa por defecto (`v2` o `v1`) | `v2` | `v2` |
+| **`bennugd.v2.compilerPath`** | Ruta al compilador de BennuGD 2 | `C:\BennuGD2\bin\bgdc.exe` | `/opt/bennugd2/bin/bgdc` o `~/bennugd2/build/bin/bgdc` |
+| **`bennugd.v2.runtimePath`** | Ruta al intérprete/runner de BennuGD 2 | `C:\BennuGD2\bin\bgdi.exe` | `/opt/bennugd2/bin/bgdi` o `~/bennugd2/build/bin/bgdi` |
+| **`bennugd.v1.compilerPath`** | Ruta al compilador de BennuGD 1 clásico | `C:\BennuGD_v1\bgdc.exe` | `/usr/local/bennugd1/bin/bgdc` |
+| **`bennugd.v1.runtimePath`** | Ruta al intérprete de BennuGD 1 clásico | `C:\BennuGD_v1\bgdi.exe` | `/usr/local/bennugd1/bin/bgdi` |
+
+> 💡 **Nota Multiplataforma:** BennuIDE detecta e inyecta automáticamente las variables de entorno necesarias (`PATH`, `DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH` y `BGD2DEV`), resolviendo dependencias dinámicas como `mod_*.dylib`, `mod_*.so` o `mod_*.dll` sin que tengas que configurar scripts adicionales.
+
+---
+
+### 🔹 Método 2: Por Proyecto Mediante `.vscode/settings.json` *(Recomendado para Equipos)*
+
+Si trabajas en un proyecto o repositorio compartido, puedes incluir un archivo `.vscode/settings.json` en la raíz de tu proyecto. BennuIDE soporta variables dinámicas como `${workspaceFolder}` y `~`:
 
 ```json
 {
   "bennugd.version": "v2",
   "bennugd.mainFile": "main.prg",
-  "bennugd.v2.compilerPath": "/usr/local/bin/bgdc",
-  "bennugd.v2.runtimePath": "/usr/local/bin/bgdi"
+  "bennugd.killPreviousOnRun": true,
+  "bennugd.clearOutputBeforeCompile": true,
+
+  "bennugd.v2.compilerPath": "${workspaceFolder}/tools/bin/bgdc",
+  "bennugd.v2.runtimePath": "${workspaceFolder}/tools/bin/bgdi",
+  "bennugd.v2.compilerArgs": [],
+  "bennugd.v2.includePaths": [
+    "${workspaceFolder}/modules",
+    "${workspaceFolder}/include"
+  ]
 }
 ```
+
+---
+
+### 🚀 Cómo Compilar y Ejecutar tu Juego
+
+Una vez configuradas las rutas, abre cualquier archivo `.prg`, `.inc` o `.bgd`:
+
+1. **Botón `▶ Compilar y Ejecutar`** en la esquina superior derecha del editor (o atajo predeterminado).
+2. **Botón `⚙ Compilar`** para generar el archivo binario `.dcb` sin lanzar el juego.
+3. **Selector de Versión `🛠 BennuGD v2`** en la barra de estado inferior para alternar entre BennuGD 1 y BennuGD 2 en cualquier momento.
+
+Si ocurre algún error de sintaxis durante la compilación, la consola **BennuGD Output** mostrará el detalle con enlaces directos y el panel de **Problemas** (*Problems*) te permitirá saltar a la línea exacta del código haciendo clic.
 
 ---
 
