@@ -96,6 +96,15 @@ fi
 /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeExtensions:0 string 'fnt'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:2:CFBundleTypeExtensions:1 string 'fnx'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
 
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3 dict" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeName string 'BennuGD Audio File'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeRole string 'Editor'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeExtensions array" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeExtensions:0 string 'wav'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeExtensions:1 string 'ogg'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeExtensions:2 string 'mp3'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleDocumentTypes:3:CFBundleTypeExtensions:3 string 'flac'" "${APP_PATH}/Contents/Info.plist" 2>/dev/null || true
+
 # 4.5 Inject product.json customization and default BennuGD settings
 PRODUCT_JSON="${APP_PATH}/Contents/Resources/app/product.json"
 if [ -f "${PRODUCT_JSON}" ]; then
@@ -117,6 +126,7 @@ if [ -f "${PRODUCT_JSON}" ]; then
       { name: 'vscode.bennugd2-language', version: '1.0.0' },
       { name: 'vscode.bennugd2-fpg-editor', version: '1.0.0' },
       { name: 'vscode.bennugd2-fnt-editor', version: '1.0.0' },
+      { name: 'vscode.bennugd2-audio-editor', version: '1.0.0' },
       { name: 'vscode.bennuide-ai-agent', version: '1.0.0' },
       { name: 'MS-CEINTL.vscode-language-pack-es', version: '1.87.0' }
     ];
@@ -162,6 +172,38 @@ if [ -f "${PRODUCT_JSON}" ]; then
         {
           'viewType': 'bennugd2.fntEditor',
           'filenamePattern': '*.FNX'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.wav'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.WAV'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.ogg'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.OGG'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.mp3'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.MP3'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.flac'
+        },
+        {
+          'viewType': 'bennugd2.audioEditor',
+          'filenamePattern': '*.FLAC'
         }
       ]
     };
@@ -192,6 +234,7 @@ copy_extension() {
 copy_extension "${PROJECT_ROOT}/extensions/bennugd2-language"
 copy_extension "${PROJECT_ROOT}/extensions/bennugd2-fpg-editor"
 copy_extension "${PROJECT_ROOT}/extensions/bennugd2-fnt-editor"
+copy_extension "${PROJECT_ROOT}/extensions/bennugd2-audio-editor"
 copy_extension "${PROJECT_ROOT}/packages/bennuide-ai-agent"
 
 # Clean development-only files

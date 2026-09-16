@@ -95,55 +95,101 @@
     ],
     "commands": [
       {
-        "command": "bennugd2.compile",
-        "title": "BennuGD2: Compile Project/File",
-        "category": "BennuGD2",
+        "command": "bennugd.compile",
+        "title": "BennuGD: Compilar Archivo/Proyecto",
+        "category": "BennuGD",
         "icon": "$(gear)"
       },
       {
-        "command": "bennugd2.run",
-        "title": "BennuGD2: Run Compiled DCB",
-        "category": "BennuGD2",
+        "command": "bennugd.compileAndRun",
+        "title": "BennuGD: Compilar y Ejecutar",
+        "category": "BennuGD",
+        "icon": "$(run)"
+      },
+      {
+        "command": "bennugd.run",
+        "title": "BennuGD: Ejecutar (.dcb)",
+        "category": "BennuGD",
         "icon": "$(play)"
       },
       {
+        "command": "bennugd.clean",
+        "title": "BennuGD: Limpiar Binarios (.dcb)",
+        "category": "BennuGD",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "bennugd.switchVersion",
+        "title": "BennuGD: Cambiar Versión Activa del Compilador (v1 / v2)",
+        "category": "BennuGD",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "bennugd2.compile",
+        "title": "BennuGD: Compilar Archivo/Proyecto",
+        "category": "BennuGD"
+      },
+      {
         "command": "bennugd2.compileAndRun",
-        "title": "BennuGD2: Compile and Run",
-        "category": "BennuGD2",
-        "icon": "$(run-all)"
+        "title": "BennuGD: Compilar y Ejecutar",
+        "category": "BennuGD"
+      },
+      {
+        "command": "bennugd2.run",
+        "title": "BennuGD: Ejecutar (.dcb)",
+        "category": "BennuGD"
       },
       {
         "command": "bennugd2.clean",
-        "title": "BennuGD2: Clean Build Files (.dcb)",
-        "category": "BennuGD2",
-        "icon": "$(trash)"
+        "title": "BennuGD: Limpiar Binarios (.dcb)",
+        "category": "BennuGD"
       }
     ],
     "menus": {
-      "editor/title/run": [
+      "editor/title": [
         {
-          "command": "bennugd2.compileAndRun",
-          "when": "resourceExtname == .prg || editorLangId == bennugd2",
+          "command": "bennugd.compileAndRun",
+          "when": "resourceExtname == .prg || resourceExtname == .PRG || resourceExtname == .inc || resourceExtname == .INC || editorLangId == bennugd2",
           "group": "navigation@1"
         },
         {
-          "command": "bennugd2.compile",
-          "when": "resourceExtname == .prg || editorLangId == bennugd2",
+          "command": "bennugd.compile",
+          "when": "resourceExtname == .prg || resourceExtname == .PRG || resourceExtname == .inc || resourceExtname == .INC || editorLangId == bennugd2",
+          "group": "navigation@2"
+        },
+        {
+          "command": "bennugd.switchVersion",
+          "when": "resourceExtname == .prg || resourceExtname == .PRG || resourceExtname == .inc || resourceExtname == .INC || editorLangId == bennugd2",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "bennugd.compileAndRun",
+          "when": "resourceExtname == .prg || resourceExtname == .PRG || editorLangId == bennugd2",
+          "group": "navigation@1"
+        },
+        {
+          "command": "bennugd.compile",
+          "when": "resourceExtname == .prg || resourceExtname == .PRG || editorLangId == bennugd2",
           "group": "navigation@2"
         }
       ],
       "commandPalette": [
         {
-          "command": "bennugd2.compile"
+          "command": "bennugd.compile"
         },
         {
-          "command": "bennugd2.run"
+          "command": "bennugd.compileAndRun"
         },
         {
-          "command": "bennugd2.compileAndRun"
+          "command": "bennugd.run"
         },
         {
-          "command": "bennugd2.clean"
+          "command": "bennugd.clean"
+        },
+        {
+          "command": "bennugd.switchVersion"
         }
       ]
     },
@@ -176,49 +222,122 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "BennuGD2 Configuration",
+      "title": "BennuGD Studio",
       "properties": {
-        "bennugd2.compilerPath": {
+        "bennugd.version": {
+          "type": "string",
+          "enum": [
+            "v2",
+            "v1"
+          ],
+          "enumDescriptions": [
+            "BennuGD versión 2 (bgdc / bgd2)",
+            "BennuGD versión 1 clásico (bgdc v1)"
+          ],
+          "default": "v2",
+          "description": "Versión activa del compilador y motor BennuGD para este proyecto o espacio de trabajo."
+        },
+        "bennugd.mainFile": {
+          "type": "string",
+          "default": "",
+          "description": "Archivo .prg principal del proyecto. Si está vacío, se compilará el archivo .prg abierto actualmente."
+        },
+        "bennugd.killPreviousOnRun": {
+          "type": "boolean",
+          "default": true,
+          "description": "Finalizar automáticamente cualquier instancia del juego en ejecución antes de compilar y ejecutar una nueva."
+        },
+        "bennugd.clearOutputBeforeCompile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Limpiar la consola de salida de BennuGD antes de cada compilación."
+        },
+        "bennugd.v2.compilerPath": {
           "type": "string",
           "default": "bgdc",
-          "description": "Path to the bgdc compiler executable."
+          "description": "[BennuGD v2] Ruta o nombre del ejecutable del compilador bgdc/bgd2 para BennuGD 2."
         },
-        "bennugd2.runtimePath": {
+        "bennugd.v2.runtimePath": {
           "type": "string",
           "default": "bgdi",
-          "description": "Path to the bgdi interpreter executable."
+          "description": "[BennuGD v2] Ruta o nombre del ejecutable del intérprete/runtime bgdi/bgd2 para BennuGD 2."
         },
-        "bennugd2.compilerArgs": {
+        "bennugd.v2.compilerArgs": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "default": [],
-          "description": "Additional command-line arguments to pass to bgdc."
+          "description": "[BennuGD v2] Argumentos adicionales de línea de comandos pasados a bgdc v2."
         },
-        "bennugd2.mainFile": {
+        "bennugd.v2.runtimeArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "[BennuGD v2] Argumentos adicionales de línea de comandos pasados a bgdi v2."
+        },
+        "bennugd.v2.includePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "[BennuGD v2] Rutas adicionales de búsqueda de includes/módulos (-i)."
+        },
+        "bennugd.v1.compilerPath": {
           "type": "string",
-          "default": "",
-          "description": "Main .prg file to compile for the project. If empty, the currently active editor file will be compiled."
+          "default": "bgdc",
+          "description": "[BennuGD v1] Ruta o nombre del ejecutable del compilador bgdc de BennuGD 1 clásico."
         },
-        "bennugd2.debugPort": {
+        "bennugd.v1.runtimePath": {
+          "type": "string",
+          "default": "bgdi",
+          "description": "[BennuGD v1] Ruta o nombre del ejecutable del intérprete/runtime bgdi de BennuGD 1 clásico."
+        },
+        "bennugd.v1.compilerArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "[BennuGD v1] Argumentos adicionales de línea de comandos pasados a bgdc v1."
+        },
+        "bennugd.v1.runtimeArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "[BennuGD v1] Argumentos adicionales de línea de comandos pasados a bgdi v1."
+        },
+        "bennugd.v1.includePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "[BennuGD v1] Rutas adicionales de búsqueda de includes/módulos (-i)."
+        },
+        "bennugd.debugPort": {
           "type": "number",
           "default": 4711,
-          "description": "Local TCP port used to communicate with the bgdi debug hook socket."
+          "description": "Puerto TCP para la conexión con el depurador interactivo."
         }
       }
     },
     "problemMatchers": [
       {
-        "name": "bennugd2-bgdc",
-        "owner": "bennugd2",
+        "name": "bennugd-bgdc",
+        "owner": "bennugd",
         "fileLocation": [
           "relative",
           "${workspaceFolder}"
         ],
         "pattern": [
           {
-            "regexp": "^(.+):(\\d+):\\s+(error|warning):\\s+(.+)$",
+            "regexp": "^(.+?):(\\d+):\\s*(error|warning)?:\\s*(.+)$",
             "file": 1,
             "line": 2,
             "severity": 3,

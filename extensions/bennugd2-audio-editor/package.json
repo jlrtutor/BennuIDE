@@ -1,0 +1,72 @@
+{
+  "name": "bennugd2-audio-editor",
+  "displayName": "BennuGD2 Audio Editor & Waveform Studio",
+  "description": "Full-featured audio editor, visualizer, equalizer, and effects studio for BennuGD2 audio assets (.wav, .ogg, .mp3, .flac).",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onCustomEditor:bennugd2.audioEditor",
+    "*"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "bennugd2.audioEditor",
+        "displayName": "BennuGD Audio Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.wav"
+          },
+          {
+            "filenamePattern": "*.WAV"
+          },
+          {
+            "filenamePattern": "*.ogg"
+          },
+          {
+            "filenamePattern": "*.OGG"
+          },
+          {
+            "filenamePattern": "*.mp3"
+          },
+          {
+            "filenamePattern": "*.MP3"
+          },
+          {
+            "filenamePattern": "*.flac"
+          },
+          {
+            "filenamePattern": "*.FLAC"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "bennugd2.openAudioEditor",
+        "title": "BennuGD2: Abrir en Editor de Audio",
+        "category": "BennuGD2"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}

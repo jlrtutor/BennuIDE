@@ -10,7 +10,7 @@
   "scripts": {
     "compile": "npm run compile --workspaces --if-present",
     "build": "npm run compile --workspaces --if-present",
-    "package:all": "npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-language && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fpg-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fnt-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix packages/bennuide-ai-agent",
+    "package:all": "npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-language && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fpg-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-fnt-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix extensions/bennugd2-audio-editor && npx -y @vscode/vsce package --no-dependencies -o dist/ --prefix packages/bennuide-ai-agent",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },

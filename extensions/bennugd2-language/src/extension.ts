@@ -31,8 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  const outputChannel = vscode.window.createOutputChannel('BennuGD2');
-  const diagnosticCollection = vscode.languages.createDiagnosticCollection('bennugd2');
+  const outputChannel = vscode.window.createOutputChannel('BennuGD Output');
+  const diagnosticCollection = vscode.languages.createDiagnosticCollection('bennugd');
   compiler = new BennuCompiler(outputChannel, diagnosticCollection);
 
   context.subscriptions.push(outputChannel, diagnosticCollection);
@@ -68,65 +68,90 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  client = new LanguageClient('bennugd2Lsp', 'BennuGD2 Language Server', serverOptions, clientOptions);
+  client = new LanguageClient('bennugd2Lsp', 'BennuGD Language Server', serverOptions, clientOptions);
 
   client.start();
 
   // 3. Status Bar Buttons
   createStatusBarButtons(context);
 
-  // 4. Register Commands
+  // 4. Listen for configuration changes
   context.subscriptions.push(
-    vscode.commands.registerCommand('bennugd2.compile', async () => {
-      const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
-      if (target) {
-        await compiler.compile(target);
-      }
-    }),
-
-    vscode.commands.registerCommand('bennugd2.run', async () => {
-      const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
-      if (target) {
-        await compiler.run(target);
-      }
-    }),
-
-    vscode.commands.registerCommand('bennugd2.compileAndRun', async () => {
-      const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
-      if (target) {
-        const compiled = await compiler.compile(target);
-        if (compiled) {
-          await compiler.run(target);
-        }
-      }
-    }),
-
-    vscode.commands.registerCommand('bennugd2.clean', async () => {
-      const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
-      if (target) {
-        await compiler.clean(target);
+    vscode.workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('bennugd.version')) {
+        compiler.updateStatusBar();
       }
     })
   );
 
-  // 5. Register Debugger Provider
+  // 5. Register Commands
+  const executeCompile = async () => {
+    const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
+    if (target) {
+      await compiler.compile(target);
+    }
+  };
+
+  const executeRun = async () => {
+    const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
+    if (target) {
+      await compiler.run(target);
+    }
+  };
+
+  const executeCompileAndRun = async () => {
+    const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
+    if (target) {
+      await compiler.compileAndRun(target);
+    }
+  };
+
+  const executeClean = async () => {
+    const target = await compiler.getTargetFile(vscode.window.activeTextEditor);
+    if (target) {
+      await compiler.clean(target);
+    }
+  };
+
+  const executeSwitchVersion = async () => {
+    await compiler.switchVersionInteractive();
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('bennugd.compile', executeCompile),
+    vscode.commands.registerCommand('bennugd2.compile', executeCompile),
+    vscode.commands.registerCommand('bennugd.run', executeRun),
+    vscode.commands.registerCommand('bennugd2.run', executeRun),
+    vscode.commands.registerCommand('bennugd.compileAndRun', executeCompileAndRun),
+    vscode.commands.registerCommand('bennugd2.compileAndRun', executeCompileAndRun),
+    vscode.commands.registerCommand('bennugd.clean', executeClean),
+    vscode.commands.registerCommand('bennugd2.clean', executeClean),
+    vscode.commands.registerCommand('bennugd.switchVersion', executeSwitchVersion)
+  );
+
+  // 6. Register Debugger Provider
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('bennugd2', new BennuDebugAdapterDescriptorFactory())
   );
 }
 
 function createStatusBarButtons(context: vscode.ExtensionContext) {
-  const compileRunBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-  compileRunBtn.text = '$(run-all) BennuGD2 Run';
-  compileRunBtn.tooltip = 'Compilar y ejecutar juego BennuGD2';
-  compileRunBtn.command = 'bennugd2.compileAndRun';
+  const versionSwitcherBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102);
+  versionSwitcherBtn.command = 'bennugd.switchVersion';
+  compiler.setStatusBarItem(versionSwitcherBtn);
+  context.subscriptions.push(versionSwitcherBtn);
+
+  const compileRunBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
+  compileRunBtn.text = '$(run) BennuGD Run';
+  compileRunBtn.tooltip = 'Compilar y ejecutar juego BennuGD';
+  compileRunBtn.command = 'bennugd.compileAndRun';
   compileRunBtn.show();
   context.subscriptions.push(compileRunBtn);
 
-  const compileBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+  const compileBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   compileBtn.text = '$(gear) Compile';
-  compileBtn.tooltip = 'Compilar proyecto BennuGD2 con bgdc';
-  compileBtn.command = 'bennugd2.compile';
+  compileBtn.tooltip = 'Compilar proyecto BennuGD con bgdc';
+  compileBtn.command = 'bennugd.compile';
   compileBtn.show();
   context.subscriptions.push(compileBtn);
 }
@@ -143,3 +168,4 @@ export function deactivate(): Thenable<void> | undefined {
   }
   return client.stop();
 }
+
