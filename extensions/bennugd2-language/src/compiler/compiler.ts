@@ -171,8 +171,15 @@ export class BennuCompiler {
 
     return new Promise<boolean>((resolve) => {
       try {
-        const env = { ...process.env };
-        const process = spawn(profile.compilerPath, args, {
+        const binDir = path.isAbsolute(profile.compilerPath) ? path.dirname(profile.compilerPath) : '';
+        const systemPath = process.env.PATH || '';
+        const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
+        const env = {
+          ...process.env,
+          PATH: customPath
+        };
+
+        const childProcess = spawn(profile.compilerPath, args, {
           cwd: workDir,
           shell: true,
           env
@@ -224,17 +231,17 @@ export class BennuCompiler {
           }
         };
 
-        process.stdout.on('data', processOutput);
-        process.stderr.on('data', processOutput);
+        childProcess.stdout?.on('data', processOutput);
+        childProcess.stderr?.on('data', processOutput);
 
-        process.on('error', (err) => {
+        childProcess.on('error', (err) => {
           this.outputChannel.appendLine(`\n❌ [ERROR] No se pudo ejecutar el compilador '${profile.compilerPath}': ${err.message}`);
           this.outputChannel.appendLine(`ℹ️ Configura la ruta correcta en: Ajustes -> BennuGD -> bennugd.${profile.version}.compilerPath`);
           vscode.window.showErrorMessage(`BennuGD ${profile.version.toUpperCase()}: No se pudo ejecutar '${profile.compilerPath}'. Revisa la configuración de rutas.`);
           resolve(false);
         });
 
-        process.on('close', (code) => {
+        childProcess.on('close', (code) => {
           // Apply diagnostics to editor
           for (const [file, diags] of diagnosticsMap.entries()) {
             this.diagnosticCollection.set(vscode.Uri.file(file), diags);
@@ -289,10 +296,18 @@ export class BennuCompiler {
     this.outputChannel.appendLine(`\n🎮 [BennuGD ${profile.version.toUpperCase()}] Ejecutando: ${profile.runtimePath} ${args.join(' ')}`);
 
     try {
+      const binDir = path.isAbsolute(profile.runtimePath) ? path.dirname(profile.runtimePath) : '';
+      const systemPath = process.env.PATH || '';
+      const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
+      const env = {
+        ...process.env,
+        PATH: customPath
+      };
+
       this.runningProcess = spawn(profile.runtimePath, args, {
         cwd: workDir,
         shell: true,
-        env: { ...process.env }
+        env
       });
 
       this.runningProcess.stdout?.on('data', (data) => {
