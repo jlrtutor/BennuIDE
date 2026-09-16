@@ -50,6 +50,23 @@ export class BennuCompiler {
     this.statusBarItem.show();
   }
 
+  private resolvePathVariables(inputPath: string): string {
+    if (!inputPath) return inputPath;
+    let resolved = inputPath;
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceFolder) {
+      resolved = resolved.replace(/\$\{workspaceFolder\}/g, workspaceFolder);
+      resolved = resolved.replace(/\$\{workspaceRoot\}/g, workspaceFolder);
+    }
+    if (resolved.startsWith('~/') || resolved === '~') {
+      const homedir = process.env.HOME || process.env.USERPROFILE || '';
+      if (homedir) {
+        resolved = path.join(homedir, resolved.slice(1));
+      }
+    }
+    return resolved;
+  }
+
   public getProfileConfig(): BennuProfileConfig {
     const config = vscode.workspace.getConfiguration('bennugd');
     const version = this.getActiveVersion();
@@ -58,20 +75,23 @@ export class BennuCompiler {
     // Fallbacks for backwards compatibility
     const oldConfig = vscode.workspace.getConfiguration('bennugd2');
 
-    const compilerPath = config.get<string>(`${section}.compilerPath`) ||
+    const rawCompilerPath = config.get<string>(`${section}.compilerPath`) ||
       oldConfig.get<string>('compilerPath') ||
       'bgdc';
 
-    const runtimePath = config.get<string>(`${section}.runtimePath`) ||
+    const rawRuntimePath = config.get<string>(`${section}.runtimePath`) ||
       oldConfig.get<string>('runtimePath') ||
       'bgdi';
+
+    const compilerPath = this.resolvePathVariables(rawCompilerPath.trim());
+    const runtimePath = this.resolvePathVariables(rawRuntimePath.trim());
 
     const compilerArgs = config.get<string[]>(`${section}.compilerArgs`) ||
       oldConfig.get<string[]>('compilerArgs') ||
       [];
 
     const runtimeArgs = config.get<string[]>(`${section}.runtimeArgs`) || [];
-    const includePaths = config.get<string[]>(`${section}.includePaths`) || [];
+    const includePaths = (config.get<string[]>(`${section}.includePaths`) || []).map(p => this.resolvePathVariables(p));
 
     return {
       version,
@@ -129,6 +149,106 @@ export class BennuCompiler {
     vscode.window.showErrorMessage('BennuGD: No se encontró ningún archivo .prg abierto o archivo principal configurado.');
     return undefined;
   }
+  private prepareExecutionEnvironment(binaryPath: string): NodeJS.ProcessEnv {
+    const delimiter = path.delimiter; // ':' on Linux/macOS, ';' on Windows
+    const env: NodeJS.ProcessEnv = { ...process.env };
+
+    const resolvedBinary = this.resolvePathVariables(binaryPath);
+    let binDir = '';
+
+    if (path.isAbsolute(resolvedBinary)) {
+      binDir = path.dirname(resolvedBinary);
+    } else {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (workspaceFolder) {
+        const workspaceCandidate = path.join(workspaceFolder, resolvedBinary);
+        if (fs.existsSync(workspaceCandidate)) {
+          binDir = path.dirname(workspaceCandidate);
+        }
+      }
+    }
+
+    const extraBinDirs: string[] = [];
+    const extraLibDirs: string[] = [];
+
+    if (binDir && fs.existsSync(binDir)) {
+      extraBinDirs.push(binDir);
+
+      // Check standard sibling directories (bin/lib structure)
+      const siblingLib = path.resolve(binDir, '..', 'lib');
+      if (fs.existsSync(siblingLib)) {
+        extraLibDirs.push(siblingLib);
+      }
+      const siblingBin = path.resolve(binDir, '..', 'bin');
+      if (fs.existsSync(siblingBin) && siblingBin !== binDir) {
+        extraBinDirs.push(siblingBin);
+      }
+
+      // Try to detect BennuGD source/development root
+      let currentDir = binDir;
+      let detectedBgdRoot = '';
+      for (let i = 0; i < 4; i++) {
+        currentDir = path.dirname(currentDir);
+        if (!currentDir || currentDir === '/' || /^[a-zA-Z]:[\\/]?$/.test(currentDir)) break;
+
+        const hasCore = fs.existsSync(path.join(currentDir, 'core'));
+        const hasModules = fs.existsSync(path.join(currentDir, 'modules'));
+        const hasBuild = fs.existsSync(path.join(currentDir, 'build'));
+        const hasBinaries = fs.existsSync(path.join(currentDir, 'binaries'));
+
+        if ((hasCore && hasModules) || hasBuild || hasBinaries) {
+          detectedBgdRoot = currentDir;
+          break;
+        }
+      }
+
+      if (detectedBgdRoot) {
+        if (!env.BGD2DEV) {
+          env.BGD2DEV = detectedBgdRoot;
+        }
+
+        // Dynamically find platform directories inside build/ and binaries/
+        for (const sub of ['build', 'binaries']) {
+          const subRoot = path.join(detectedBgdRoot, sub);
+          if (fs.existsSync(subRoot)) {
+            try {
+              const platformDirs = fs.readdirSync(subRoot);
+              for (const pDir of platformDirs) {
+                const fullPlatformDir = path.join(subRoot, pDir);
+                const pLib = path.join(fullPlatformDir, 'lib');
+                const pBin = path.join(fullPlatformDir, 'bin');
+                if (fs.existsSync(pLib)) extraLibDirs.push(pLib);
+                if (fs.existsSync(pBin)) extraBinDirs.push(pBin);
+              }
+            } catch {}
+          }
+        }
+      }
+    }
+
+    // Prepend all binary directories to PATH
+    const systemPath = env.PATH || '';
+    const uniqueBinDirs = Array.from(new Set(extraBinDirs.filter(d => fs.existsSync(d))));
+    if (uniqueBinDirs.length > 0) {
+      env.PATH = `${uniqueBinDirs.join(delimiter)}${delimiter}${systemPath}`;
+    }
+
+    // Build dynamic library paths (macOS DYLD_LIBRARY_PATH, Linux LD_LIBRARY_PATH, and PATH for Windows)
+    const uniqueLibDirs = Array.from(new Set([...extraBinDirs, ...extraLibDirs].filter(d => fs.existsSync(d))));
+    const extraLibStr = uniqueLibDirs.join(delimiter);
+
+    if (extraLibStr) {
+      env.DYLD_LIBRARY_PATH = env.DYLD_LIBRARY_PATH
+        ? `${extraLibStr}${delimiter}${env.DYLD_LIBRARY_PATH}`
+        : extraLibStr;
+
+      env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH
+        ? `${extraLibStr}${delimiter}${env.LD_LIBRARY_PATH}`
+        : extraLibStr;
+    }
+
+    return env;
+  }
 
   public async compile(targetPrgPath: string, debug: boolean = false): Promise<boolean> {
     const profile = this.getProfileConfig();
@@ -171,35 +291,7 @@ export class BennuCompiler {
 
     return new Promise<boolean>((resolve) => {
       try {
-        const binDir = path.isAbsolute(profile.compilerPath) ? path.dirname(profile.compilerPath) : '';
-        const systemPath = process.env.PATH || '';
-        const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
-        const bgd2Dev = binDir ? path.resolve(binDir, '..', '..') : '';
-        const libDir = binDir ? path.resolve(binDir, '..', 'lib') : '';
-        
-        // Build robust library paths for macOS and Linux
-        const extraLibPaths = [binDir, libDir];
-        if (bgd2Dev) {
-          extraLibPaths.push(
-            path.join(bgd2Dev, 'build', 'macos-arm64', 'lib'),
-            path.join(bgd2Dev, 'build', 'macos-arm64', 'bin'),
-            path.join(bgd2Dev, 'binaries', 'macos-arm64', 'lib'),
-            path.join(bgd2Dev, 'binaries', 'macos-arm64', 'bin')
-          );
-        }
-        const extraLibPathStr = extraLibPaths.filter(p => p && fs.existsSync(p)).join(':');
-
-        const env: NodeJS.ProcessEnv = {
-          ...process.env,
-          PATH: customPath,
-          BGD2DEV: process.env.BGD2DEV || bgd2Dev,
-          DYLD_LIBRARY_PATH: extraLibPathStr
-            ? `${extraLibPathStr}:${process.env.DYLD_LIBRARY_PATH || ''}`
-            : process.env.DYLD_LIBRARY_PATH,
-          LD_LIBRARY_PATH: extraLibPathStr
-            ? `${extraLibPathStr}:${process.env.LD_LIBRARY_PATH || ''}`
-            : process.env.LD_LIBRARY_PATH
-        };
+        const env = this.prepareExecutionEnvironment(profile.compilerPath);
 
         const childProcess = spawn(profile.compilerPath, args, {
           cwd: workDir,
@@ -318,34 +410,7 @@ export class BennuCompiler {
     this.outputChannel.appendLine(`\n🎮 [BennuGD ${profile.version.toUpperCase()}] Ejecutando: ${profile.runtimePath} ${args.join(' ')}`);
 
     try {
-      const binDir = path.isAbsolute(profile.runtimePath) ? path.dirname(profile.runtimePath) : '';
-      const systemPath = process.env.PATH || '';
-      const customPath = binDir ? `${binDir}:${systemPath}` : systemPath;
-      const bgd2Dev = binDir ? path.resolve(binDir, '..', '..') : '';
-      const libDir = binDir ? path.resolve(binDir, '..', 'lib') : '';
-
-      const extraLibPaths = [binDir, libDir];
-      if (bgd2Dev) {
-        extraLibPaths.push(
-          path.join(bgd2Dev, 'build', 'macos-arm64', 'lib'),
-          path.join(bgd2Dev, 'build', 'macos-arm64', 'bin'),
-          path.join(bgd2Dev, 'binaries', 'macos-arm64', 'lib'),
-          path.join(bgd2Dev, 'binaries', 'macos-arm64', 'bin')
-        );
-      }
-      const extraLibPathStr = extraLibPaths.filter(p => p && fs.existsSync(p)).join(':');
-
-      const env: NodeJS.ProcessEnv = {
-        ...process.env,
-        PATH: customPath,
-        BGD2DEV: process.env.BGD2DEV || bgd2Dev,
-        DYLD_LIBRARY_PATH: extraLibPathStr
-          ? `${extraLibPathStr}:${process.env.DYLD_LIBRARY_PATH || ''}`
-          : process.env.DYLD_LIBRARY_PATH,
-        LD_LIBRARY_PATH: extraLibPathStr
-          ? `${extraLibPathStr}:${process.env.LD_LIBRARY_PATH || ''}`
-          : process.env.LD_LIBRARY_PATH
-      };
+      const env = this.prepareExecutionEnvironment(profile.runtimePath);
 
       this.runningProcess = spawn(profile.runtimePath, args, {
         cwd: workDir,
