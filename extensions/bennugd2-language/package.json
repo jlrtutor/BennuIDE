@@ -130,6 +130,18 @@
         "category": "BennuGD"
       },
       {
+        "command": "bennuide.welcome",
+        "title": "BennuIDE: Pantalla de Bienvenida (Dashboard)",
+        "category": "BennuIDE",
+        "icon": "$(home)"
+      },
+      {
+        "command": "bennuide.newProject",
+        "title": "BennuIDE: Asistente de Nuevo Proyecto",
+        "category": "BennuIDE",
+        "icon": "$(plus)"
+      },
+      {
         "command": "bennugd2.compile",
         "title": "BennuGD: Compilar Archivo/Proyecto",
         "category": "BennuGD"
@@ -256,6 +268,11 @@
           "type": "boolean",
           "default": true,
           "description": "Limpiar la consola de salida de BennuGD antes de cada compilación."
+        },
+        "bennuide.showWelcomeOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostrar la pantalla de bienvenida al abrir BennuIDE sin ningún proyecto cargado."
         },
         "bennugd.v2.compilerPath": {
           "type": "string",

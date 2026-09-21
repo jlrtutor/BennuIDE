@@ -9,6 +9,7 @@ import {
 import { BennuCompiler } from './compiler/compiler';
 import { BennuDebugSession } from './debugger/debugAdapter';
 import { BennuDefinitionProvider, BennuDocumentLinkProvider } from './navigation/definitionProvider';
+import { WelcomePanel } from './welcome/welcomePanel';
 
 let client: LanguageClient;
 let compiler: BennuCompiler;
@@ -136,7 +137,11 @@ export function activate(context: vscode.ExtensionContext) {
         new vscode.Range(l.range.start.line, l.range.start.character, l.range.end.line, l.range.end.character)
       ));
       await vscode.commands.executeCommand('editor.action.showReferences', uri, position, locations);
-    })
+    }),
+    vscode.commands.registerCommand('bennuide.welcome', () => WelcomePanel.createOrShow(context, compiler, 'home')),
+    vscode.commands.registerCommand('bennugd.welcome', () => WelcomePanel.createOrShow(context, compiler, 'home')),
+    vscode.commands.registerCommand('bennuide.newProject', () => WelcomePanel.createOrShow(context, compiler, 'new-project')),
+    vscode.commands.registerCommand('bennugd.newProject', () => WelcomePanel.createOrShow(context, compiler, 'new-project'))
   );
 
   // 6. Automatic #include / import Refactoring on File Rename
@@ -189,9 +194,31 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('bennugd2', new BennuDebugAdapterDescriptorFactory())
   );
+
+  // 8. Auto-record open workspace folder into recent projects
+  if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    for (const folder of vscode.workspace.workspaceFolders) {
+      WelcomePanel.addRecentProject(context, folder.uri.fsPath);
+    }
+  }
+
+  // 9. Auto-open Welcome Screen when opening BennuIDE with an empty workspace
+  const showWelcome = vscode.workspace.getConfiguration('bennuide').get<boolean>('showWelcomeOnStartup', true);
+  if (showWelcome && (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0)) {
+    setTimeout(() => {
+      WelcomePanel.createOrShow(context, compiler, 'home');
+    }, 450);
+  }
 }
 
 function createStatusBarButtons(context: vscode.ExtensionContext) {
+  const welcomeBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 103);
+  welcomeBtn.text = '$(home) BennuIDE Inicio';
+  welcomeBtn.tooltip = 'Abrir Asistente de Inicio y Proyectos BennuIDE';
+  welcomeBtn.command = 'bennuide.welcome';
+  welcomeBtn.show();
+  context.subscriptions.push(welcomeBtn);
+
   const versionSwitcherBtn = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102);
   versionSwitcherBtn.command = 'bennugd.switchVersion';
   compiler.setStatusBarItem(versionSwitcherBtn);
