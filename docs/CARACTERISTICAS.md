@@ -11,11 +11,12 @@
 3. [Soporte de Lenguaje y Servidor LSP Avanzado](#3-soporte-de-lenguaje-y-servidor-lsp-avanzado)
 4. [Snippets y Patrones de Código para Videojuegos](#4-snippets-y-patrones-de-código-para-videojuegos)
 5. [Sistema Dual de Compilación y Atajos de Teclado (v1 / v2)](#5-sistema-dual-de-compilación-y-atajos-de-teclado-v1--v2)
-6. [Depurador Interactivo Integrado (DAP)](#6-depurador-interactivo-integrado-dap)
-7. [Editor Visual de Paquetes de Sprites FPG](#7-editor-visual-de-paquetes-de-sprites-fpg)
-8. [Editor y Rasterizador de Fuentes BGDFntEditor (FNT / FNX)](#8-editor-y-rasterizador-de-fuentes-bgdfnteditor-fnt--fnx)
-9. [Editor de Audio y Generador SFX Chiptune Retro](#9-editor-de-audio-y-generador-sfx-chiptune-retro)
-10. [Interfaz, Temas Visuales y Soporte Bilingüe](#10-interfaz-temas-visuales-y-soporte-bilingüe)
+6. [Integración Git Visual y Control de Versiones](#6-integración-git-visual-y-control-de-versiones)
+7. [Depurador Interactivo Integrado (DAP)](#7-depurador-interactivo-integrado-dap)
+8. [Editor Visual de Paquetes de Sprites FPG](#8-editor-visual-de-paquetes-de-sprites-fpg)
+9. [Editor y Rasterizador de Fuentes BGDFntEditor (FNT / FNX)](#9-editor-y-rasterizador-de-fuentes-bgdfnteditor-fnt--fnx)
+10. [Editor de Audio y Generador SFX Chiptune Retro](#10-editor-de-audio-y-generador-sfx-chiptune-retro)
+11. [Interfaz, Temas Visuales y Soporte Bilingüe](#11-interfaz-temas-visuales-y-soporte-bilingüe)
 
 ---
 
@@ -120,7 +121,25 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 
 ---
 
-## 6. Depurador Interactivo Integrado (DAP)
+## 6. Integración Git Visual y Control de Versiones
+
+- **Indicadores en la Barra de Estado (*Status Bar*):**
+  - **Indicador de Rama y Estado (`$(git-branch) master*`):** Muestra la rama activa actual y añade un asterisco con el número de archivos modificados si hay cambios pendientes de confirmación.
+  - **Indicador de Sincronización (`$(sync) 1↑ 0↓`):** Muestra el número de commits pendientes de subir (*Push*) y de descargar (*Pull*).
+  - **Tooltip Informativo:** Muestra la rama, hash y mensaje del último commit, autor, fecha y estado de sincronización.
+- **Menú Interactivo de Git:**
+  - Al hacer clic en el botón de rama, se despliega un menú rápido con las acciones esenciales:
+    - 🔄 **Sincronizar Cambios (*Pull & Push*):** Descarga los últimos cambios remotos y sube los commits locales con barra de progreso.
+    - ⬇️ **Hacer Pull (*Descargar*):** Incorpora los commits remotos a la rama actual.
+    - ⬆️ **Hacer Push (*Subir*):** Envía los commits locales al repositorio remoto.
+    - 💾 **Commit Rápido...:** Solicita un mensaje de commit, agrega automáticamente los archivos modificados (`git add -A`) y genera el commit.
+    - 🌿 **Cambiar o Crear Rama...:** Permite cambiar a cualquier rama local o remota existente o crear una nueva rama de desarrollo con nombre personalizado.
+    - 📋 **Ver Historial de Commits:** Muestra los últimos commits con autor y fecha, permitiendo copiar el hash SHA al portapapeles con un clic.
+- **Observador Automático:** Detecta en tiempo real los cambios generados por Git o modificaciones de archivos en el disco para mantener la interfaz siempre actualizada.
+
+---
+
+## 7. Depurador Interactivo Integrado (DAP)
 
 - Compatible con el protocolo estándar de depuración de VSCode (**Debug Adapter Protocol**).
 - Soporte para:
@@ -131,7 +150,7 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 
 ---
 
-## 7. Editor Visual de Paquetes de Sprites FPG
+## 8. Editor Visual de Paquetes de Sprites FPG
 
 - **Inspección de Archivos `.fpg`:**
   - Visualización en cuadrícula de todos los gráficos contenidos con su código de gráfico (ID), dimensiones y profundidad de color (8, 16 o 32 bpp).
@@ -145,7 +164,7 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 
 ---
 
-## 8. Editor y Rasterizador de Fuentes BGDFntEditor (FNT / FNX)
+## 9. Editor y Rasterizador de Fuentes BGDFntEditor (FNT / FNX)
 
 - **Compatibilidad de Formatos:**
   - Soporte de lectura y escritura para fuentes modernas **FNX** de 32 bits y fuentes clásicas **FNT** de 8 bits (DIV / BennuGD con paleta y gamma), 16 bits (RGB565) y 32 bits (XRGB8888).
@@ -164,7 +183,7 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 
 ---
 
-## 9. Editor de Audio y Generador SFX Chiptune Retro
+## 10. Editor de Audio y Generador SFX Chiptune Retro
 
 - **Visualizador y Editor de Formas de Onda:**
   - Soporte multi-canal estéreo/mono para archivos de audio (`.wav`, `.ogg`, `.mp3`, `.flac`).
@@ -187,7 +206,7 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 
 ---
 
-## 10. Interfaz, Temas Visuales y Soporte Bilingüe
+## 11. Interfaz, Temas Visuales y Soporte Bilingüe
 
 - **Temas Oficiales de BennuIDE:**
   - **BennuIDE Dark:** Paleta oscura elegante basada en *One Dark Pro* con contrastes optimizados.
@@ -196,3 +215,4 @@ BennuIDE incluye una biblioteca de plantillas y snippets (`bennugd2.json`) para 
 - **Soporte Bilingüe Automático (Español / Inglés):**
   - Detección automática del idioma del sistema operativo.
   - Traducción completa de barras de menús, paneles de control, botones, editores visuales y herramientas de desarrollo.
+

@@ -41,7 +41,7 @@
 - [x] **Pantalla de Bienvenida / Dashboard**: Panel inicial profesional con proyectos recientes, acceso rápido a demos, documentación, comprobación del estado del compilador y botón "Nuevo Proyecto" — ✅ Implementado (Sep 2026)
 - [x] **Asistente de Nuevo Proyecto**: Wizard guiado con selector visual de plantillas (Arcade Shooter 2D, Plataformas 2D, Modular, Mínimo), selección de resolución, versión v1/v2, generación de carpetas base (`src/`, `data/fpg/`, `data/fnt/`, `data/audio/`, `.vscode/settings.json`, `.gitignore`, `README.md`) y apertura automática en el IDE — ✅ Implementado (Sep 2026)
 - [x] **Explorador de Recursos del Juego**: Panel lateral en la barra de actividades con árbol clasificado de assets (FPG, FNT/FNX, Audio, Mapas, Código) con apertura directa en sus editores visuales correspondientes — ✅ Implementado (Sep 2026)
-- [ ] **Integración Git Visual básica**: Indicador de rama actual, último commit y botón de push/pull en la barra de estado.
+- [x] **Integración Git Visual básica**: Indicador de rama actual, estado de cambios locales, sincronización Push/Pull y menú interactivo en la barra de estado — ✅ Implementado (Sep 2026)
 - [x] **Snippets avanzados y plantillas de código**: Plantillas de código enriquecidas para actor jugador, enemigos, spawner, máquina de estados, scroll 2D, HUD y animaciones FPG (`snippets/bennugd2.json`) — ✅ Implementado (Sep 2026)
 - [x] **Configuración de atajos de teclado específicos de BennuGD**: Atajos nativos integrados para <kbd>F5</kbd> / <kbd>Cmd+R</kbd> (Compilar y Ejecutar), <kbd>Shift+Cmd+B</kbd> (Compilar), <kbd>Cmd+Shift+H</kbd> (Inicio) — ✅ Implementado (Sep 2026)
 

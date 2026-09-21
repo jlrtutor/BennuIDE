@@ -11,6 +11,7 @@ import { BennuDebugSession } from './debugger/debugAdapter';
 import { BennuDefinitionProvider, BennuDocumentLinkProvider } from './navigation/definitionProvider';
 import { WelcomePanel } from './welcome/welcomePanel';
 import { ResourceTreeProvider } from './explorer/resourceExplorer';
+import { GitIntegration } from './git/gitIntegration';
 
 let client: LanguageClient;
 let compiler: BennuCompiler;
@@ -56,6 +57,10 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('bennuide.resourceExplorer', resourceProvider),
     vscode.commands.registerCommand('bennuide.resources.refresh', () => resourceProvider.refresh())
   );
+
+  // 1.2 Visual Git Integration
+  const gitIntegration = new GitIntegration(context);
+  context.subscriptions.push(gitIntegration);
 
   // 2. Language Server Setup
   const serverModule = context.asAbsolutePath(path.join('out', 'server', 'server.js'));

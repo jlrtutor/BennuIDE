@@ -148,6 +148,48 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "bennuide.git.menu",
+        "title": "BennuIDE Git: Abrir Menú Git",
+        "category": "BennuIDE",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "bennuide.git.sync",
+        "title": "BennuIDE Git: Sincronizar Cambios (Pull & Push)",
+        "category": "BennuIDE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "bennuide.git.pull",
+        "title": "BennuIDE Git: Hacer Pull (Descargar)",
+        "category": "BennuIDE",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "bennuide.git.push",
+        "title": "BennuIDE Git: Hacer Push (Subir)",
+        "category": "BennuIDE",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "bennuide.git.commit",
+        "title": "BennuIDE Git: Commit Rápido...",
+        "category": "BennuIDE",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "bennuide.git.switchBranch",
+        "title": "BennuIDE Git: Cambiar o Crear Rama...",
+        "category": "BennuIDE",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "bennuide.git.viewLog",
+        "title": "BennuIDE Git: Ver Historial de Commits",
+        "category": "BennuIDE",
+        "icon": "$(history)"
+      },
+      {
         "command": "bennugd2.compile",
         "title": "BennuGD: Compilar Archivo/Proyecto",
         "category": "BennuGD"
