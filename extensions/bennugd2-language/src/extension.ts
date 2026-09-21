@@ -126,10 +126,66 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('bennugd2.compileAndRun', executeCompileAndRun),
     vscode.commands.registerCommand('bennugd.clean', executeClean),
     vscode.commands.registerCommand('bennugd2.clean', executeClean),
-    vscode.commands.registerCommand('bennugd.switchVersion', executeSwitchVersion)
+    vscode.commands.registerCommand('bennugd.switchVersion', executeSwitchVersion),
+    vscode.commands.registerCommand('bennugd.showReferences', async (uriString: string, pos: { line: number; character: number }, locs: any[]) => {
+      if (!uriString || !pos) return;
+      const uri = vscode.Uri.parse(uriString);
+      const position = new vscode.Position(pos.line, pos.character);
+      const locations = (locs || []).map(l => new vscode.Location(
+        vscode.Uri.parse(l.uri),
+        new vscode.Range(l.range.start.line, l.range.start.character, l.range.end.line, l.range.end.character)
+      ));
+      await vscode.commands.executeCommand('editor.action.showReferences', uri, position, locations);
+    })
   );
 
-  // 6. Register Debugger Provider
+  // 6. Automatic #include / import Refactoring on File Rename
+  context.subscriptions.push(
+    vscode.workspace.onDidRenameFiles(async e => {
+      for (const file of e.files) {
+        const oldExt = path.extname(file.oldUri.fsPath).toLowerCase();
+        if (!['.inc', '.prg', '.h', '.bgd'].includes(oldExt)) continue;
+
+        const oldBase = path.basename(file.oldUri.fsPath);
+        const newBase = path.basename(file.newUri.fsPath);
+        if (oldBase === newBase) continue;
+
+        const uris = await vscode.workspace.findFiles('**/*.{prg,inc,bgd,h,PRG,INC,BGD,H}');
+        const workspaceEdit = new vscode.WorkspaceEdit();
+        let editCount = 0;
+
+        for (const uri of uris) {
+          if (uri.fsPath === file.newUri.fsPath) continue;
+          try {
+            const doc = await vscode.workspace.openTextDocument(uri);
+            const text = doc.getText();
+            const escapedOld = oldBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b(include|import)\\s+(['"])(.*?)${escapedOld}\\2`, 'gi');
+            let m: RegExpExecArray | null;
+            while ((m = regex.exec(text)) !== null) {
+              const startPos = doc.positionAt(m.index);
+              const endPos = doc.positionAt(m.index + m[0].length);
+              const directive = m[1];
+              const quote = m[2];
+              const prefix = m[3] || '';
+              const replacement = `${directive} ${quote}${prefix}${newBase}${quote}`;
+              workspaceEdit.replace(uri, new vscode.Range(startPos, endPos), replacement);
+              editCount++;
+            }
+          } catch { /* ignore */ }
+        }
+
+        if (editCount > 0) {
+          await vscode.workspace.applyEdit(workspaceEdit);
+          vscode.window.showInformationMessage(
+            `BennuIDE: Se actualizaron ${editCount} referencia(s) de include de '${oldBase}' a '${newBase}'.`
+          );
+        }
+      }
+    })
+  );
+
+  // 7. Register Debugger Provider
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('bennugd2', new BennuDebugAdapterDescriptorFactory())
   );

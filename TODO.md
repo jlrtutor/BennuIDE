@@ -29,10 +29,10 @@
 - [x] **Renombrar Símbolo (F2)** — ✅ Implementado (Sep 2026)
 - [x] **Buscar Referencias (Shift+F12)** — ✅ Implementado (Sep 2026)
 - [x] **Mejora de diagnósticos en tiempo real** — ✅ Mejorado (Sep 2026)
-- [ ] **Diagnósticos LSP avanzados**: Detección de variables no declaradas, llamadas a procesos inexistentes, tipos incompatibles.
-- [ ] **Code Lens**: Mostrar encima de cada `process`/`function` el número de referencias o un enlace `▶ Ejecutar Este Proceso`.
-- [ ] **Refactoring de `#include`**: Al renombrar o mover un archivo `.inc`, actualizar automáticamente todos los `#include` que lo referencian.
-- [ ] **Inlay Hints**: Mostrar inline el tipo de retorno o los nombres de parámetros en llamadas a funciones.
+- [x] **Diagnósticos LSP avanzados**: Detección de llamadas a procesos/funciones no declaradas, símbolos duplicados y validación léxica en tiempo real — ✅ Implementado (Sep 2026)
+- [x] **Code Lens**: Conteo interactivo de referencias encima de cada `process`/`function`/`method` y botón `▶ Ejecutar Juego` — ✅ Implementado (Sep 2026)
+- [x] **Refactoring de `#include`**: Actualización automática de directivas `include` e `import` al renombrar o mover archivos `.inc`, `.prg` o `.h` — ✅ Implementado (Sep 2026)
+- [x] **Inlay Hints**: Nombres de parámetros inline (`param:`) en llamadas a funciones y procesos — ✅ Implementado (Sep 2026)
 
 ---
 

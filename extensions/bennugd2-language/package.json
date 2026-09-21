@@ -125,6 +125,11 @@
         "icon": "$(tools)"
       },
       {
+        "command": "bennugd.showReferences",
+        "title": "BennuGD: Mostrar Referencias",
+        "category": "BennuGD"
+      },
+      {
         "command": "bennugd2.compile",
         "title": "BennuGD: Compilar Archivo/Proyecto",
         "category": "BennuGD"

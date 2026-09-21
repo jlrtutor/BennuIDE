@@ -28,7 +28,13 @@ import {
   WorkspaceEdit,
   PrepareRenameParams,
   ResponseError,
-  ErrorCodes
+  ErrorCodes,
+  CodeLens,
+  CodeLensParams,
+  InlayHint,
+  InlayHintParams,
+  InlayHintKind,
+  Command
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -178,6 +184,90 @@ const BUILTIN_FUNCTIONS: Record<string, BGDDoc> = {
     params: ['soundId: ID devuelto por sound_load', 'volume: Volumen (0-128)', 'loops: Número de repeticiones (0 = una vez, -1 = bucle infinito)'],
     returnType: 'int (Channel ID)'
   },
+  say: {
+    signature: 'say(string text)',
+    doc: 'Imprime un mensaje en la consola de depuración / terminal estándar.',
+    params: ['text: Cadena de texto a imprimir en stdout'],
+    returnType: 'void'
+  },
+  fnt_load: {
+    signature: 'fnt_load(string filename)',
+    doc: 'Carga una fuente FNT en memoria y devuelve su font ID.',
+    params: ['filename: Ruta del archivo .fnt a cargar'],
+    returnType: 'int (Font ID)'
+  },
+  load_fnt: {
+    signature: 'load_fnt(string filename)',
+    doc: 'Alias para cargar una fuente FNT en memoria.',
+    params: ['filename: Ruta del archivo .fnt a cargar'],
+    returnType: 'int (Font ID)'
+  },
+  fnt_unload: {
+    signature: 'fnt_unload(int fontId)',
+    doc: 'Descarga una fuente de memoria.',
+    params: ['fontId: Identificador de la fuente'],
+    returnType: 'int'
+  },
+  sound_load: {
+    signature: 'sound_load(string filename)',
+    doc: 'Carga un archivo de audio WAV u OGG y devuelve su sound ID.',
+    params: ['filename: Ruta del archivo de audio'],
+    returnType: 'int (Sound ID)'
+  },
+  sound_unload: {
+    signature: 'sound_unload(int soundId)',
+    doc: 'Descarga un archivo de sonido de memoria.',
+    params: ['soundId: ID del sonido devuelto por sound_load'],
+    returnType: 'int'
+  },
+  sound_stop: {
+    signature: 'sound_stop(int channelId)',
+    doc: 'Detiene la reproducción de un canal de audio.',
+    params: ['channelId: ID de canal devuelto por sound_play'],
+    returnType: 'int'
+  },
+  music_load: {
+    signature: 'music_load(string filename)',
+    doc: 'Carga una pista de música de fondo (OGG, MP3, MOD).',
+    params: ['filename: Ruta del archivo de música'],
+    returnType: 'int (Music ID)'
+  },
+  music_play: {
+    signature: 'music_play(int musicId, int loops = -1)',
+    doc: 'Reproduce la pista de música de fondo especificada.',
+    params: ['musicId: ID de la música', 'loops: Número de bucles (-1 infinito, 0 una vez)'],
+    returnType: 'int'
+  },
+  music_stop: {
+    signature: 'music_stop()',
+    doc: 'Detiene la música de fondo en reproducción.',
+    params: [],
+    returnType: 'int'
+  },
+  music_unload: {
+    signature: 'music_unload(int musicId)',
+    doc: 'Descarga de memoria una pista de música.',
+    params: ['musicId: ID de la música'],
+    returnType: 'int'
+  },
+  fade: {
+    signature: 'fade(int r, int g, int b, int speed)',
+    doc: 'Realiza un fundido de color en pantalla hacia el RGB indicado.',
+    params: ['r: Componente rojo (0-255)', 'g: Componente verde (0-255)', 'b: Componente azul (0-255)', 'speed: Velocidad del fundido'],
+    returnType: 'int'
+  },
+  fade_off: {
+    signature: 'fade_off(int speed = 16)',
+    doc: 'Fundido a negro de la pantalla.',
+    params: ['speed: Velocidad del fundido'],
+    returnType: 'int'
+  },
+  fade_on: {
+    signature: 'fade_on(int speed = 16)',
+    doc: 'Fundido desde negro a la pantalla normal.',
+    params: ['speed: Velocidad del fundido'],
+    returnType: 'int'
+  },
   let_me_alone: {
     signature: 'let_me_alone()',
     doc: 'Mata a todos los procesos excepto al proceso actual que ejecuta la función.',
@@ -212,7 +302,18 @@ const PROCESS_VARIABLES: Record<string, string> = {
   id: 'Identificador único de la instancia de este proceso en la VM.',
   father: 'ID del proceso padre que creó a este proceso.',
   son: 'ID del último proceso hijo creado por este proceso.',
-  brother: 'ID del siguiente proceso hermano en la jerarquía.'
+  brother: 'ID del siguiente proceso hermano en la jerarquía.',
+  bigbro: 'ID del hermano mayor en la jerarquía de procesos.',
+  smallbro: 'ID del hermano menor en la jerarquía de procesos.',
+  priority: 'Prioridad de ejecución del proceso (mayor prioridad se ejecuta antes).',
+  ctype: 'Tipo de colisión (c_screen, c_scroll, etc.).',
+  cnumber: 'Número de máscara de colisión.',
+  height: 'Altura calculada del gráfico asignado al proceso.',
+  width: 'Anchura calculada del gráfico asignado al proceso.',
+  status: 'Estado actual del proceso (STATUS_RUNNING, STATUS_DEAD, etc.).',
+  saved_status: 'Estado previo guardado del proceso.',
+  saved_priority: 'Prioridad previa guardada del proceso.',
+  frame_percent: 'Porcentaje transcurrido del frame actual.'
 };
 
 const CONSTANTS: Record<string, string> = {
@@ -224,6 +325,11 @@ const CONSTANTS: Record<string, string> = {
   S_SLEEP: 'Señal para pausar un proceso (deja de ejecutarse pero sigue dibujándose).',
   S_FREEZE: 'Señal para congelar un proceso (deja de ejecutarse y de dibujarse).',
   S_WAKEUP: 'Señal para reactivar un proceso dormido o congelado.',
+  STATUS_DEAD: 'Estado de proceso muerto o terminado.',
+  STATUS_RUNNING: 'Estado de proceso activo y en ejecución.',
+  STATUS_SLEEPING: 'Estado de proceso dormido.',
+  STATUS_FROZEN: 'Estado de proceso congelado.',
+  ALL_PROCESS: 'Constante para aplicar señal a todos los procesos.',
   ALIGN_TOP_LEFT: 'Alineación de texto arriba a la izquierda.',
   ALIGN_CENTER: 'Alineación de texto centrada.',
   ALIGN_BOTTOM_RIGHT: 'Alineación de texto abajo a la derecha.',
@@ -765,7 +871,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       referencesProvider: true,
       renameProvider: {
         prepareProvider: true
-      }
+      },
+      codeLensProvider: {
+        resolveProvider: false
+      },
+      inlayHintProvider: true
     }
   };
 
@@ -1097,31 +1207,10 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
 });
 
 // ─────────────────────────────────────────────────────────
-// Find References (Shift+F12)
 // ─────────────────────────────────────────────────────────
-connection.onReferences((params: ReferenceParams): Location[] => {
-  const uri = params.textDocument.uri;
-  const doc = documents.get(uri);
-  if (!doc) return [];
-
-  const position = params.position;
-  const text = doc.getText();
-  const lines = text.split(/\r?\n/);
-  const currentLine = lines[position.line] || '';
-
-  // Extract word under cursor
-  const wordMatch = currentLine.match(/([a-zA-Z_][a-zA-Z0-9_]*)/);
-  let wordStart = position.character;
-  let wordEnd = position.character;
-  for (let i = position.character; i >= 0; i--) {
-    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordStart = i + 1; break; }
-    if (i === 0) { wordStart = 0; }
-  }
-  for (let i = position.character; i < currentLine.length; i++) {
-    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordEnd = i; break; }
-    if (i === currentLine.length - 1) { wordEnd = i + 1; }
-  }
-  const word = currentLine.substring(wordStart, wordEnd).trim();
+// Find References Helper (searches all project documents)
+// ─────────────────────────────────────────────────────────
+function findReferencesForWord(word: string): Location[] {
   if (!word || word.length < 2) return [];
 
   const wordLower = word.toLowerCase();
@@ -1141,7 +1230,7 @@ connection.onReferences((params: ReferenceParams): Location[] => {
   }
 
   // For each document, find all lines where the identifier appears as a whole word
-  for (const [docUri, parsed] of searchDocs) {
+  for (const [docUri] of searchDocs) {
     let docText: string | undefined;
     const openDoc = documents.get(docUri);
     if (openDoc) {
@@ -1161,7 +1250,6 @@ connection.onReferences((params: ReferenceParams): Location[] => {
 
     for (let lineIdx = 0; lineIdx < docLines.length; lineIdx++) {
       const rawLine = docLines[lineIdx];
-      // Strip comments before searching
       const commentIdx = rawLine.indexOf('//');
       const lineToSearch = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
 
@@ -1180,6 +1268,192 @@ connection.onReferences((params: ReferenceParams): Location[] => {
   }
 
   return locations;
+}
+
+// ─────────────────────────────────────────────────────────
+// Find References (Shift+F12)
+// ─────────────────────────────────────────────────────────
+connection.onReferences((params: ReferenceParams): Location[] => {
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
+  if (!doc) return [];
+
+  const position = params.position;
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
+
+  let wordStart = position.character;
+  let wordEnd = position.character;
+  for (let i = position.character; i >= 0; i--) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordStart = i + 1; break; }
+    if (i === 0) { wordStart = 0; }
+  }
+  for (let i = position.character; i < currentLine.length; i++) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordEnd = i; break; }
+    if (i === currentLine.length - 1) { wordEnd = i + 1; }
+  }
+  const word = currentLine.substring(wordStart, wordEnd).trim();
+  return findReferencesForWord(word);
+});
+
+// ─────────────────────────────────────────────────────────
+// Code Lens
+// ─────────────────────────────────────────────────────────
+connection.onCodeLens((params: CodeLensParams): CodeLens[] => {
+  const uri = params.textDocument.uri;
+  const parsed = getOrLoadParsedDocument(uri);
+  if (!parsed) return [];
+
+  const codeLenses: CodeLens[] = [];
+
+  for (const s of parsed.symbols) {
+    if (s.isDeclare) continue;
+    // Show Code Lens on processes, functions, and methods
+    if (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function || s.kind === SymbolKind.Method) {
+      const locs = findReferencesForWord(s.name);
+      const count = locs.length;
+      const refTitle = count === 1 ? '1 referencia' : `${count} referencias`;
+
+      // 1. Reference count CodeLens
+      codeLenses.push({
+        range: s.range,
+        command: {
+          title: `🔍 ${refTitle}`,
+          command: 'bennugd.showReferences',
+          arguments: [uri, s.selectionRange.start, locs]
+        }
+      });
+
+      // 2. Run Game CodeLens for processes
+      if (s.kind === SymbolKind.Class) {
+        codeLenses.push({
+          range: s.range,
+          command: {
+            title: '▶ Ejecutar Juego',
+            command: 'bennugd.compileAndRun',
+            arguments: []
+          }
+        });
+      }
+    }
+  }
+
+  return codeLenses;
+});
+
+// ─────────────────────────────────────────────────────────
+// Inlay Hints (Inline parameter hints for function calls)
+// ─────────────────────────────────────────────────────────
+connection.onInlayHint((params: InlayHintParams): InlayHint[] => {
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const hints: InlayHint[] = [];
+
+  const startLine = Math.max(0, params.range.start.line);
+  const endLine = Math.min(lines.length - 1, params.range.end.line);
+
+  // Map of known function/process parameter lists
+  const allSymbols = getAllSymbolsForDocument(uri);
+  const customSignatures = new Map<string, string[]>();
+
+  for (const sym of allSymbols) {
+    if (sym.kind === SymbolKind.Function || sym.kind === SymbolKind.Class || sym.kind === SymbolKind.Method) {
+      if (sym.signature) {
+        const parenMatch = sym.signature.match(/\(([^)]*)\)/);
+        if (parenMatch && parenMatch[1].trim()) {
+          const rawParams = parenMatch[1].split(',').map(p => {
+            const parts = p.trim().split(/\s+/);
+            return parts[parts.length - 1].replace(/^[&*]+/, '');
+          });
+          customSignatures.set(sym.name.toLowerCase(), rawParams);
+        }
+      }
+    }
+  }
+
+  for (let lineIdx = startLine; lineIdx <= endLine; lineIdx++) {
+    const rawLine = lines[lineIdx];
+    const commentIdx = rawLine.indexOf('//');
+    const code = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
+    if (!code.trim()) continue;
+
+    const callRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = callRegex.exec(code)) !== null) {
+      const callee = match[1];
+      const calleeLower = callee.toLowerCase();
+      const openParenIdx = match.index + match[0].length - 1;
+
+      // Skip keywords that take parentheses
+      if (['if', 'while', 'for', 'switch', 'until', 'repeat', 'sizeof', 'type'].includes(calleeLower)) {
+        continue;
+      }
+
+      let paramNames: string[] = [];
+      const builtin = BUILTIN_FUNCTIONS[calleeLower];
+      if (builtin && builtin.params) {
+        paramNames = builtin.params.map(p => p.split(':')[0].trim());
+      } else if (customSignatures.has(calleeLower)) {
+        paramNames = customSignatures.get(calleeLower)!;
+      }
+
+      if (paramNames.length === 0) continue;
+
+      // Find matching close parenthesis
+      let depth = 1;
+      let closeParenIdx = -1;
+      for (let c = openParenIdx + 1; c < code.length; c++) {
+        if (code[c] === '(') depth++;
+        else if (code[c] === ')') {
+          depth--;
+          if (depth === 0) {
+            closeParenIdx = c;
+            break;
+          }
+        }
+      }
+      if (closeParenIdx === -1) continue;
+
+      const argsContent = code.substring(openParenIdx + 1, closeParenIdx);
+      if (!argsContent.trim()) continue;
+
+      let argDepth = 0;
+      let currentArgStart = 0;
+      let argIndex = 0;
+
+      for (let c = 0; c <= argsContent.length; c++) {
+        const ch = argsContent[c];
+        if (ch === '(' || ch === '[' || ch === '{') argDepth++;
+        else if (ch === ')' || ch === ']' || ch === '}') argDepth--;
+        else if ((ch === ',' && argDepth === 0) || c === argsContent.length) {
+          const argText = argsContent.substring(currentArgStart, c);
+          const trimmedArg = argText.trim();
+          if (trimmedArg && argIndex < paramNames.length) {
+            const pName = paramNames[argIndex];
+            const offsetInArg = argText.indexOf(trimmedArg);
+            const argCol = openParenIdx + 1 + currentArgStart + offsetInArg;
+
+            hints.push({
+              position: Position.create(lineIdx, argCol),
+              label: `${pName}:`,
+              kind: InlayHintKind.Parameter,
+              paddingRight: true
+            });
+          }
+          currentArgStart = c + 1;
+          argIndex++;
+        }
+      }
+    }
+  }
+
+  return hints;
 });
 
 // ─────────────────────────────────────────────────────────
@@ -1389,6 +1663,7 @@ connection.onSignatureHelp((params: TextDocumentPositionParams): SignatureHelp |
 });
 
 // Document Change Listener
+// Document Change & Open Listeners
 documents.onDidChangeContent(change => {
   const uri = change.document.uri;
   if (uri.startsWith('file://')) {
@@ -1396,6 +1671,15 @@ documents.onDidChangeContent(change => {
   }
   parseDocumentFull(uri, change.document.getText());
   validateDocument(change.document);
+});
+
+documents.onDidOpen(e => {
+  const uri = e.document.uri;
+  if (uri.startsWith('file://')) {
+    discoverProjectRoot(fileURLToPath(uri));
+  }
+  parseDocumentFull(uri, e.document.getText());
+  validateDocument(e.document);
 });
 
 // ─────────────────────────────────────────────────────────
@@ -1412,18 +1696,7 @@ function validateDocument(doc: TextDocument): void {
   // Block openers: keywords that require a matching 'end'
   const BLOCK_OPENERS = /^\b(begin|if|while|loop|repeat|for|switch|process|function|method|program|global|local|private|public|const|type|struct)\b/i;
   const BLOCK_CLOSERS = /^\bend\b/i;
-  // Inline blocks don't open a new scope (e.g. else / elseif)
   const BLOCK_MIDDLE = /^\b(else|elseif|case|default|until|from)\b/i;
-
-  // Collect known symbols for undefined-identifier checks
-  const parsedDoc = getOrLoadParsedDocument(doc.uri);
-  const allKnownNames = new Set<string>();
-  if (parsedDoc) {
-    for (const s of parsedDoc.symbols) allKnownNames.add(s.name.toLowerCase());
-  }
-  for (const name of Object.keys(BUILTIN_FUNCTIONS)) allKnownNames.add(name.toLowerCase());
-  for (const name of Object.keys(PROCESS_VARIABLES)) allKnownNames.add(name.toLowerCase());
-  for (const name of Object.keys(CONSTANTS)) allKnownNames.add(name.toLowerCase());
 
   const KEYWORDS = new Set([
     'program', 'process', 'function', 'method', 'begin', 'end', 'global', 'local',
@@ -1432,8 +1705,59 @@ function validateDocument(doc: TextDocument): void {
     'break', 'continue', 'return', 'frame', 'signal', 'clone', 'import', 'include',
     'declare', 'int', 'string', 'float', 'double', 'byte', 'word', 'dword', 'char',
     'short', 'long', 'pointer', 'true', 'false', 'null', 'nil', 'and', 'or', 'not',
-    'xor', 'mod', 'div', 's_kill', 's_sleep', 's_freeze', 's_wakeup', 'type', 'sizeof'
+    'xor', 'mod', 'div', 's_kill', 's_sleep', 's_freeze', 's_wakeup', 'sizeof'
   ]);
+
+  const CALL_EXCLUSIONS = new Set([
+    'if', 'while', 'for', 'switch', 'until', 'repeat', 'sizeof', 'type',
+    'int', 'string', 'float', 'double', 'byte', 'word', 'dword', 'char',
+    'short', 'long', 'pointer', 'frame', 'signal', 'clone', 'return',
+    'declare', 'process', 'function', 'method', 'program', 'case', 'from', 'to', 'step'
+  ]);
+
+  const parsedDoc = getOrLoadParsedDocument(doc.uri);
+
+  // ── A. Check duplicate definitions in this file ─────────────
+  const seenDefinitions = new Map<string, number>();
+  if (parsedDoc) {
+    for (const s of parsedDoc.symbols) {
+      if (s.isDeclare) continue;
+      if (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function || s.kind === SymbolKind.Method) {
+        const lower = s.name.toLowerCase();
+        if (seenDefinitions.has(lower)) {
+          const prevLine = seenDefinitions.get(lower)!;
+          diagnostics.push({
+            severity: DiagnosticSeverity.Error,
+            range: s.selectionRange,
+            message: `Símbolo duplicado: '${s.name}' ya fue definido previamente en la línea ${prevLine + 1}.`,
+            source: 'BennuGD2'
+          });
+        } else {
+          seenDefinitions.set(lower, s.range.start.line);
+        }
+      }
+    }
+  }
+
+  // ── B. Collect all known callable processes & functions ─────
+  const knownCallables = new Set<string>();
+  for (const fn of Object.keys(BUILTIN_FUNCTIONS)) knownCallables.add(fn.toLowerCase());
+  const projectSymbols = getAllSymbolsForDocument(doc.uri);
+  for (const s of projectSymbols) {
+    if (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function || s.kind === SymbolKind.Method || s.isDeclare) {
+      knownCallables.add(s.name.toLowerCase());
+    }
+  }
+  for (const [_, pDoc] of parsedDocsCache) {
+    for (const s of pDoc.symbols) {
+      if (s.kind === SymbolKind.Class || s.kind === SymbolKind.Function || s.kind === SymbolKind.Method || s.isDeclare) {
+        knownCallables.add(s.name.toLowerCase());
+      }
+    }
+  }
+
+  // ── C. Line-by-line lexical checks ───────────────────────────
+  let insideProcessOrFunction = false;
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
@@ -1442,10 +1766,15 @@ function validateDocument(doc: TextDocument): void {
     const commentIdx = rawLine.indexOf('//');
     const codeLine = (commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine).trim();
 
-    // Skip empty lines, full-line comments and block comment markers
+    // Skip empty lines and comments
     if (!codeLine || codeLine.startsWith('/*') || codeLine.startsWith('*')) continue;
 
-    // ── 1. Unclosed string literals ──────────────────────────────
+    // Track if inside a process or function body
+    if (/^\s*(process|function|method|program)\b/i.test(codeLine)) {
+      insideProcessOrFunction = true;
+    }
+
+    // ── 1. Unclosed string literals ────────────────────────────
     let quoteCount = 0;
     let inSingleQuote = false;
     for (const ch of codeLine) {
@@ -1463,7 +1792,7 @@ function validateDocument(doc: TextDocument): void {
       });
     }
 
-    // ── 2. begin / end block tracking ────────────────────────────
+    // ── 2. begin / end block tracking ──────────────────────────
     const codeLineLower = codeLine.toLowerCase();
     if (BLOCK_CLOSERS.test(codeLineLower)) {
       if (blockStack.length > 0) {
@@ -1481,9 +1810,8 @@ function validateDocument(doc: TextDocument): void {
       blockStack.push({ keyword: kw, line: i });
     }
 
-    // ── 3. Detect unreachable code after return ───────────────────
+    // ── 3. Detect unreachable code after return ─────────────────
     if (/^return\s*;?$/.test(codeLineLower)) {
-      // Check next non-empty line
       for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
         const nextTrimmed = lines[j].replace(/\/\/.*$/, '').trim().toLowerCase();
         if (!nextTrimmed) continue;
@@ -1498,9 +1826,38 @@ function validateDocument(doc: TextDocument): void {
         break;
       }
     }
+
+    // ── 4. Undeclared process/function calls ────────────────────
+    // Only check if not a definition line
+    if (!/^\s*(process|function|method|program|declare|import|include)\b/i.test(codeLine)) {
+      const callRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
+      let cm: RegExpExecArray | null;
+      while ((cm = callRegex.exec(codeLine)) !== null) {
+        const callee = cm[1];
+        const calleeLower = callee.toLowerCase();
+
+        if (CALL_EXCLUSIONS.has(calleeLower)) continue;
+        if (knownCallables.has(calleeLower)) continue;
+
+        // Ensure not inside a string literal
+        const prefixBefore = codeLine.substring(0, cm.index);
+        const quotesBefore = (prefixBefore.match(/"/g) || []).length;
+        if (quotesBefore % 2 !== 0) continue;
+
+        const col = rawLine.indexOf(callee, cm.index);
+        if (col >= 0) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Warning,
+            range: Range.create(Position.create(i, col), Position.create(i, col + callee.length)),
+            message: `Llamada a proceso o función no declarado: '${callee}'.`,
+            source: 'BennuGD2'
+          });
+        }
+      }
+    }
   }
 
-  // ── 4. Report unclosed blocks at their opening lines ─────────
+  // ── 5. Report unclosed blocks at their opening lines ───────
   for (const unclosed of blockStack) {
     diagnostics.push({
       severity: DiagnosticSeverity.Error,
