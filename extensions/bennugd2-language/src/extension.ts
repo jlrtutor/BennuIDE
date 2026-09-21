@@ -10,6 +10,7 @@ import { BennuCompiler } from './compiler/compiler';
 import { BennuDebugSession } from './debugger/debugAdapter';
 import { BennuDefinitionProvider, BennuDocumentLinkProvider } from './navigation/definitionProvider';
 import { WelcomePanel } from './welcome/welcomePanel';
+import { ResourceTreeProvider } from './explorer/resourceExplorer';
 
 let client: LanguageClient;
 let compiler: BennuCompiler;
@@ -47,6 +48,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(bennuSelector, new BennuDefinitionProvider()),
     vscode.languages.registerDocumentLinkProvider(bennuSelector, new BennuDocumentLinkProvider())
+  );
+
+  // 1.1 Game Resource Explorer Provider
+  const resourceProvider = new ResourceTreeProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider('bennuide.resourceExplorer', resourceProvider),
+    vscode.commands.registerCommand('bennuide.resources.refresh', () => resourceProvider.refresh())
   );
 
   // 2. Language Server Setup

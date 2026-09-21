@@ -142,6 +142,12 @@
         "icon": "$(plus)"
       },
       {
+        "command": "bennuide.resources.refresh",
+        "title": "BennuIDE: Actualizar Explorador de Recursos",
+        "category": "BennuIDE",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "bennugd2.compile",
         "title": "BennuGD: Compilar Archivo/Proyecto",
         "category": "BennuGD"
@@ -162,7 +168,67 @@
         "category": "BennuGD"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bennuide-resources",
+          "title": "Recursos del Juego",
+          "icon": "$(file-media)"
+        }
+      ]
+    },
+    "views": {
+      "bennuide-resources": [
+        {
+          "id": "bennuide.resourceExplorer",
+          "name": "Explorador de Recursos"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "bennugd.compileAndRun",
+        "key": "f5",
+        "when": "editorTextFocus && editorLangId == bennugd2"
+      },
+      {
+        "command": "bennugd.compileAndRun",
+        "key": "cmd+r",
+        "mac": "cmd+r",
+        "when": "editorTextFocus && editorLangId == bennugd2"
+      },
+      {
+        "command": "bennugd.compile",
+        "key": "shift+cmd+b",
+        "mac": "shift+cmd+b",
+        "when": "editorTextFocus && editorLangId == bennugd2"
+      },
+      {
+        "command": "bennugd.compile",
+        "key": "shift+ctrl+b",
+        "win": "shift+ctrl+b",
+        "linux": "shift+ctrl+b",
+        "when": "editorTextFocus && editorLangId == bennugd2"
+      }
+    ],
     "menus": {
+      "view/title": [
+        {
+          "command": "bennuide.resources.refresh",
+          "when": "view == bennuide.resourceExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "bennuide.welcome",
+          "when": "view == bennuide.resourceExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "bennuide.newProject",
+          "when": "view == bennuide.resourceExplorer",
+          "group": "navigation@3"
+        }
+      ],
       "editor/title": [
         {
           "command": "bennugd.compileAndRun",
