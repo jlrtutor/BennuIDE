@@ -22,7 +22,13 @@ import {
   DiagnosticSeverity,
   TextEdit,
   DocumentLink,
-  DocumentLinkParams
+  DocumentLinkParams,
+  ReferenceParams,
+  RenameParams,
+  WorkspaceEdit,
+  PrepareRenameParams,
+  ResponseError,
+  ErrorCodes
 } from 'vscode-languageserver/node';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -755,7 +761,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
       signatureHelpProvider: {
         triggerCharacters: ['(', ',']
       },
-      documentFormattingProvider: true
+      documentFormattingProvider: true,
+      referencesProvider: true,
+      renameProvider: {
+        prepareProvider: true
+      }
     }
   };
 
@@ -1086,6 +1096,228 @@ connection.onDefinition((params: TextDocumentPositionParams): Definition | null 
   return null;
 });
 
+// ─────────────────────────────────────────────────────────
+// Find References (Shift+F12)
+// ─────────────────────────────────────────────────────────
+connection.onReferences((params: ReferenceParams): Location[] => {
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
+  if (!doc) return [];
+
+  const position = params.position;
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
+
+  // Extract word under cursor
+  const wordMatch = currentLine.match(/([a-zA-Z_][a-zA-Z0-9_]*)/);
+  let wordStart = position.character;
+  let wordEnd = position.character;
+  for (let i = position.character; i >= 0; i--) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordStart = i + 1; break; }
+    if (i === 0) { wordStart = 0; }
+  }
+  for (let i = position.character; i < currentLine.length; i++) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordEnd = i; break; }
+    if (i === currentLine.length - 1) { wordEnd = i + 1; }
+  }
+  const word = currentLine.substring(wordStart, wordEnd).trim();
+  if (!word || word.length < 2) return [];
+
+  const wordLower = word.toLowerCase();
+  const locations: Location[] = [];
+
+  // Search in all cached/parsed project documents
+  scanProjectRoots();
+  const searchDocs = new Map(parsedDocsCache);
+
+  // Also include all open documents
+  for (const openDoc of documents.all()) {
+    if (!searchDocs.has(openDoc.uri)) {
+      parseDocumentFull(openDoc.uri, openDoc.getText());
+      const cached = parsedDocsCache.get(openDoc.uri);
+      if (cached) searchDocs.set(openDoc.uri, cached);
+    }
+  }
+
+  // For each document, find all lines where the identifier appears as a whole word
+  for (const [docUri, parsed] of searchDocs) {
+    let docText: string | undefined;
+    const openDoc = documents.get(docUri);
+    if (openDoc) {
+      docText = openDoc.getText();
+    } else if (docUri.startsWith('file://')) {
+      try {
+        const fp = fileURLToPath(docUri);
+        if (fs.existsSync(fp) && fs.statSync(fp).size < 3 * 1024 * 1024) {
+          docText = fs.readFileSync(fp, 'utf-8');
+        }
+      } catch { /* ignore */ }
+    }
+    if (!docText) continue;
+
+    const docLines = docText.split(/\r?\n/);
+    const wordBoundaryRegex = new RegExp(`(?<![a-zA-Z0-9_])${wordLower}(?![a-zA-Z0-9_])`, 'gi');
+
+    for (let lineIdx = 0; lineIdx < docLines.length; lineIdx++) {
+      const rawLine = docLines[lineIdx];
+      // Strip comments before searching
+      const commentIdx = rawLine.indexOf('//');
+      const lineToSearch = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
+
+      wordBoundaryRegex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = wordBoundaryRegex.exec(lineToSearch)) !== null) {
+        const col = m.index;
+        locations.push(
+          Location.create(
+            docUri,
+            Range.create(Position.create(lineIdx, col), Position.create(lineIdx, col + word.length))
+          )
+        );
+      }
+    }
+  }
+
+  return locations;
+});
+
+// ─────────────────────────────────────────────────────────
+// Prepare Rename — validates symbol can be renamed
+// ─────────────────────────────────────────────────────────
+connection.onPrepareRename((params: PrepareRenameParams) => {
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
+  if (!doc) return null;
+
+  const position = params.position;
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
+
+  let wordStart = position.character;
+  let wordEnd = position.character;
+  for (let i = position.character; i >= 0; i--) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordStart = i + 1; break; }
+    if (i === 0) { wordStart = 0; }
+  }
+  for (let i = position.character; i < currentLine.length; i++) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordEnd = i; break; }
+    if (i === currentLine.length - 1) { wordEnd = i + 1; }
+  }
+  const word = currentLine.substring(wordStart, wordEnd).trim();
+
+  // Reject rename on keywords and builtins
+  const BENNU_KEYWORDS = new Set([
+    'program', 'process', 'function', 'method', 'begin', 'end', 'global', 'local',
+    'private', 'public', 'const', 'type', 'struct', 'if', 'else', 'elseif', 'switch',
+    'case', 'default', 'while', 'loop', 'repeat', 'until', 'for', 'from', 'to', 'step',
+    'break', 'continue', 'return', 'frame', 'signal', 'clone', 'import', 'include',
+    'declare', 'int', 'string', 'float', 'double', 'byte', 'word', 'dword', 'char',
+    'short', 'long', 'pointer', 'true', 'false', 'null', 'nil'
+  ]);
+
+  if (!word || word.length < 2 || BENNU_KEYWORDS.has(word.toLowerCase())) {
+    return new ResponseError(ErrorCodes.InvalidRequest, `No se puede renombrar '${word || 'este símbolo'}'. Es una palabra clave reservada o un símbolo no renombrable.`);
+  }
+
+  return Range.create(
+    Position.create(position.line, wordStart),
+    Position.create(position.line, wordEnd)
+  );
+});
+
+// ─────────────────────────────────────────────────────────
+// Rename Symbol (F2)
+// ─────────────────────────────────────────────────────────
+connection.onRenameRequest((params: RenameParams): WorkspaceEdit | null => {
+  const uri = params.textDocument.uri;
+  const doc = documents.get(uri);
+  if (!doc) return null;
+
+  const position = params.position;
+  const newName = params.newName.trim();
+
+  // Validate new name is a valid BennuGD identifier
+  if (!newName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(newName)) {
+    return null;
+  }
+
+  const text = doc.getText();
+  const lines = text.split(/\r?\n/);
+  const currentLine = lines[position.line] || '';
+
+  let wordStart = position.character;
+  let wordEnd = position.character;
+  for (let i = position.character; i >= 0; i--) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordStart = i + 1; break; }
+    if (i === 0) { wordStart = 0; }
+  }
+  for (let i = position.character; i < currentLine.length; i++) {
+    if (!/[a-zA-Z0-9_]/.test(currentLine[i] || '')) { wordEnd = i; break; }
+    if (i === currentLine.length - 1) { wordEnd = i + 1; }
+  }
+  const oldName = currentLine.substring(wordStart, wordEnd).trim();
+  if (!oldName || oldName.length < 2) return null;
+
+  const changes: { [uri: string]: TextEdit[] } = {};
+  const wordBoundaryRegex = new RegExp(`(?<![a-zA-Z0-9_])${oldName}(?![a-zA-Z0-9_])`, 'gi');
+
+  // Scan all cached project documents
+  scanProjectRoots();
+  const searchDocs = new Map(parsedDocsCache);
+  for (const openDoc of documents.all()) {
+    if (!searchDocs.has(openDoc.uri)) {
+      parseDocumentFull(openDoc.uri, openDoc.getText());
+      const cached = parsedDocsCache.get(openDoc.uri);
+      if (cached) searchDocs.set(openDoc.uri, cached);
+    }
+  }
+
+  for (const [docUri] of searchDocs) {
+    let docText: string | undefined;
+    const openDoc = documents.get(docUri);
+    if (openDoc) {
+      docText = openDoc.getText();
+    } else if (docUri.startsWith('file://')) {
+      try {
+        const fp = fileURLToPath(docUri);
+        if (fs.existsSync(fp) && fs.statSync(fp).size < 3 * 1024 * 1024) {
+          docText = fs.readFileSync(fp, 'utf-8');
+        }
+      } catch { /* ignore */ }
+    }
+    if (!docText) continue;
+
+    const docLines = docText.split(/\r?\n/);
+    const edits: TextEdit[] = [];
+
+    for (let lineIdx = 0; lineIdx < docLines.length; lineIdx++) {
+      const rawLine = docLines[lineIdx];
+      const commentIdx = rawLine.indexOf('//');
+      const lineToSearch = commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine;
+
+      wordBoundaryRegex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = wordBoundaryRegex.exec(lineToSearch)) !== null) {
+        const col = m.index;
+        edits.push(
+          TextEdit.replace(
+            Range.create(Position.create(lineIdx, col), Position.create(lineIdx, col + oldName.length)),
+            newName
+          )
+        );
+      }
+    }
+
+    if (edits.length > 0) {
+      changes[docUri] = edits;
+    }
+  }
+
+  return { changes };
+});
+
 // Document Symbols (Outline View)
 connection.onDocumentSymbol((params): DocumentSymbol[] => {
   const uri = params.textDocument.uri;
@@ -1166,43 +1398,115 @@ documents.onDidChangeContent(change => {
   validateDocument(change.document);
 });
 
-// Live Document Validation (Diagnostics)
+// ─────────────────────────────────────────────────────────
+// Live Document Validation (Diagnostics in real time)
+// ─────────────────────────────────────────────────────────
 function validateDocument(doc: TextDocument): void {
   const text = doc.getText();
   const lines = text.split(/\r?\n/);
   const diagnostics: Diagnostic[] = [];
 
-  let beginCount = 0;
-  let endCount = 0;
+  // Track block nesting across begin/end
+  const blockStack: { keyword: string; line: number }[] = [];
+
+  // Block openers: keywords that require a matching 'end'
+  const BLOCK_OPENERS = /^\b(begin|if|while|loop|repeat|for|switch|process|function|method|program|global|local|private|public|const|type|struct)\b/i;
+  const BLOCK_CLOSERS = /^\bend\b/i;
+  // Inline blocks don't open a new scope (e.g. else / elseif)
+  const BLOCK_MIDDLE = /^\b(else|elseif|case|default|until|from)\b/i;
+
+  // Collect known symbols for undefined-identifier checks
+  const parsedDoc = getOrLoadParsedDocument(doc.uri);
+  const allKnownNames = new Set<string>();
+  if (parsedDoc) {
+    for (const s of parsedDoc.symbols) allKnownNames.add(s.name.toLowerCase());
+  }
+  for (const name of Object.keys(BUILTIN_FUNCTIONS)) allKnownNames.add(name.toLowerCase());
+  for (const name of Object.keys(PROCESS_VARIABLES)) allKnownNames.add(name.toLowerCase());
+  for (const name of Object.keys(CONSTANTS)) allKnownNames.add(name.toLowerCase());
+
+  const KEYWORDS = new Set([
+    'program', 'process', 'function', 'method', 'begin', 'end', 'global', 'local',
+    'private', 'public', 'const', 'type', 'struct', 'if', 'else', 'elseif', 'switch',
+    'case', 'default', 'while', 'loop', 'repeat', 'until', 'for', 'from', 'to', 'step',
+    'break', 'continue', 'return', 'frame', 'signal', 'clone', 'import', 'include',
+    'declare', 'int', 'string', 'float', 'double', 'byte', 'word', 'dword', 'char',
+    'short', 'long', 'pointer', 'true', 'false', 'null', 'nil', 'and', 'or', 'not',
+    'xor', 'mod', 'div', 's_kill', 's_sleep', 's_freeze', 's_wakeup', 'type', 'sizeof'
+  ]);
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const rawLine = lines[i];
 
-    const begins = (line.match(/\bbegin\b/gi) || []).length;
-    const ends = (line.match(/\bend\b/gi) || []).length;
-    beginCount += begins;
-    endCount += ends;
+    // Strip single-line comments
+    const commentIdx = rawLine.indexOf('//');
+    const codeLine = (commentIdx >= 0 ? rawLine.substring(0, commentIdx) : rawLine).trim();
 
+    // Skip empty lines, full-line comments and block comment markers
+    if (!codeLine || codeLine.startsWith('/*') || codeLine.startsWith('*')) continue;
+
+    // ── 1. Unclosed string literals ──────────────────────────────
     let quoteCount = 0;
-    for (let char of line) {
-      if (char === '"') quoteCount++;
+    let inSingleQuote = false;
+    for (const ch of codeLine) {
+      if (ch === "'" && !inSingleQuote) inSingleQuote = !inSingleQuote;
+      else if (ch === "'" && inSingleQuote) inSingleQuote = false;
+      if (ch === '"' && !inSingleQuote) quoteCount++;
     }
-    if (quoteCount % 2 !== 0 && !line.includes('//')) {
+    if (quoteCount % 2 !== 0) {
+      const col = rawLine.indexOf('"');
       diagnostics.push({
         severity: DiagnosticSeverity.Warning,
-        range: Range.create(Position.create(i, 0), Position.create(i, line.length)),
-        message: 'Posible cadena de texto no cerrada con comillas dobles',
-        source: 'BennuGD2 LSP'
+        range: Range.create(Position.create(i, Math.max(0, col)), Position.create(i, rawLine.length)),
+        message: 'Cadena de texto no cerrada: falta comilla doble de cierre `"`.',
+        source: 'BennuGD2'
       });
+    }
+
+    // ── 2. begin / end block tracking ────────────────────────────
+    const codeLineLower = codeLine.toLowerCase();
+    if (BLOCK_CLOSERS.test(codeLineLower)) {
+      if (blockStack.length > 0) {
+        blockStack.pop();
+      } else {
+        diagnostics.push({
+          severity: DiagnosticSeverity.Error,
+          range: Range.create(Position.create(i, 0), Position.create(i, rawLine.length)),
+          message: `'end' sin bloque de apertura correspondiente.`,
+          source: 'BennuGD2'
+        });
+      }
+    } else if (BLOCK_OPENERS.test(codeLineLower) && !BLOCK_MIDDLE.test(codeLineLower)) {
+      const kw = (codeLineLower.match(BLOCK_OPENERS) || [])[1] || 'block';
+      blockStack.push({ keyword: kw, line: i });
+    }
+
+    // ── 3. Detect unreachable code after return ───────────────────
+    if (/^return\s*;?$/.test(codeLineLower)) {
+      // Check next non-empty line
+      for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+        const nextTrimmed = lines[j].replace(/\/\/.*$/, '').trim().toLowerCase();
+        if (!nextTrimmed) continue;
+        if (!BLOCK_CLOSERS.test(nextTrimmed) && !BLOCK_MIDDLE.test(nextTrimmed) && !nextTrimmed.startsWith('/*')) {
+          diagnostics.push({
+            severity: DiagnosticSeverity.Hint,
+            range: Range.create(Position.create(j, 0), Position.create(j, lines[j].length)),
+            message: 'Código posiblemente inalcanzable después de `return`.',
+            source: 'BennuGD2'
+          });
+        }
+        break;
+      }
     }
   }
 
-  if (beginCount > endCount) {
+  // ── 4. Report unclosed blocks at their opening lines ─────────
+  for (const unclosed of blockStack) {
     diagnostics.push({
       severity: DiagnosticSeverity.Error,
-      range: Range.create(Position.create(lines.length - 1, 0), Position.create(lines.length - 1, 10)),
-      message: `Bloque sin cerrar: Se encontraron ${beginCount} 'begin' y solo ${endCount} 'end'.`,
-      source: 'BennuGD2 LSP'
+      range: Range.create(Position.create(unclosed.line, 0), Position.create(unclosed.line, lines[unclosed.line]?.length || 10)),
+      message: `Bloque '${unclosed.keyword}' sin 'end' de cierre.`,
+      source: 'BennuGD2'
     });
   }
 
